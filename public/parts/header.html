@@ -1,0 +1,38 @@
+<div class="mx-auto max-w-6xl px-4 pt-8">
+  <header class="mb-6 rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <a href="/" class="font-display text-lg uppercase tracking-widest text-sky-300">SLStore</a>
+
+      <nav class="flex items-center gap-2 text-sm text-slate-300">
+        <a href="/" class="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 transition hover:bg-sky-500/20 hover:text-white">
+          <span class="lucide h-4 w-4" data-lucide="house"></span>
+          Inicio
+        </a>
+        <a href="/cart.html" class="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 transition hover:bg-sky-500/20 hover:text-white">
+          <span class="lucide h-4 w-4" data-lucide="shopping-bag"></span>
+          Carrito
+        </a>
+        <a href="/help.html" class="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 transition hover:bg-sky-500/20 hover:text-white">
+          <span class="lucide h-4 w-4" data-lucide="circle-help"></span>
+          Ayuda
+        </a>
+      </nav>
+
+      <div class="flex items-center gap-2">
+        <button
+          id="cart-toggle"
+          class="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-sky-300/30 bg-sky-500/20 text-sky-100 transition hover:bg-sky-500/35 has-tooltip"
+          aria-label="Ver carrito"
+          data-tooltip="Ver carrito"
+        >
+          <span class="lucide" data-lucide="shopping-bag"></span>
+          <span
+            id="cart-count"
+            class="absolute -top-2 -right-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-sky-200 text-xs text-sky-900"
+            >0</span
+          >
+        </button>
+      </div>
+    </div>
+  </header>
+</div>

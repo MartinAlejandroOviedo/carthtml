@@ -1,0 +1,28 @@
+{
+  "name": "carthtml",
+  "version": "1.0.0",
+  "description": "Tienda deportiva mobile-first con carrito, SQLite y checkout por WhatsApp",
+  "main": "server.js",
+  "scripts": {
+    "start": "npm run tw:build && node server.js",
+    "dev": "npm run tw:build && node server.js",
+    "tw:build": "tailwindcss -c tailwind.config.js -i ./src/tailwind.input.css -o ./public/tailwind.css --minify",
+    "tw:watch": "tailwindcss -c tailwind.config.js -i ./src/tailwind.input.css -o ./public/tailwind.css --watch"
+  },
+  "keywords": [
+    "cart",
+    "tailwind",
+    "sqlite",
+    "whatsapp"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2",
+    "multer": "^2.0.2",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

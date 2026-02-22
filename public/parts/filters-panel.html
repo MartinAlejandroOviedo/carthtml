@@ -1,0 +1,49 @@
+<aside
+  id="filters-panel"
+  class="fixed inset-y-0 left-0 z-30 w-full max-w-md -translate-x-full border-r border-white/10 bg-slate-900 shadow-2xl transition-transform duration-300"
+>
+  <div class="flex items-center justify-between border-b border-white/10 p-4">
+    <div>
+      <p class="font-display text-xl uppercase text-white">Buscar y filtrar</p>
+      <p class="text-xs text-slate-400">Filtra por texto, categoria y ordena resultados.</p>
+    </div>
+    <button id="close-filters" class="text-sm text-slate-300 hover:text-white">Cerrar</button>
+  </div>
+
+  <div class="space-y-4 p-4 overflow-y-auto h-[calc(100%-64px)]">
+    <div>
+      <label for="search-products" class="mb-2 block text-xs uppercase tracking-wide text-slate-400">Buscar producto</label>
+      <div class="relative">
+        <input
+          id="search-products"
+          type="search"
+          placeholder="Ej: camiseta, botines, pelota..."
+          class="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 pl-11 text-sm text-slate-100 placeholder:text-slate-500 outline-none ring-sky-400 transition focus:ring-2"
+        />
+        <span class="lucide absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" data-lucide="search"></span>
+      </div>
+    </div>
+
+    <div>
+      <label for="category-select" class="mb-2 block text-xs uppercase tracking-wide text-slate-400">Categorias</label>
+      <select
+        id="category-select"
+        class="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
+      >
+        <option value="Todos">Todas</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="sort-products" class="mb-2 block text-xs uppercase tracking-wide text-slate-400">Ordenar</label>
+      <select
+        id="sort-products"
+        class="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
+      >
+        <option value="relevance">Relevancia</option>
+        <option value="price-asc">Precio: menor a mayor</option>
+        <option value="price-desc">Precio: mayor a menor</option>
+      </select>
+    </div>
+  </div>
+</aside>

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login Panel | SLStore</title>
+    <link rel="stylesheet" href="/tailwind.css" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="bg-slate-950 text-slate-100 font-body min-h-screen">
+    <div class="fixed inset-0 -z-10 bg-mesh"></div>
+    <main class="mx-auto flex min-h-screen max-w-md items-center px-4 py-8">
+      <section class="w-full rounded-3xl border border-white/10 bg-slate-900/75 p-6 shadow-2xl shadow-slate-950/60">
+        <p class="font-display text-3xl uppercase text-white">Acceso al Panel</p>
+        <p class="mt-2 text-sm text-slate-300">Ingresá un token para continuar.</p>
+
+        <form id="login-form" class="mt-5 space-y-3">
+          <input
+            id="panel-token"
+            type="password"
+            required
+            placeholder="Token"
+            class="w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+          />
+          <button
+            type="submit"
+            class="w-full rounded-xl bg-primary-600 py-2.5 font-semibold text-white transition hover:bg-primary-500"
+          >
+            Entrar
+          </button>
+        </form>
+
+        <p id="login-message" class="mt-3 text-sm text-slate-300"></p>
+      </section>
+    </main>
+
+    <script>
+      const TOKEN_KEY = 'panel_token';
+      const form = document.getElementById('login-form');
+      const tokenInput = document.getElementById('panel-token');
+      const message = document.getElementById('login-message');
+
+      if (localStorage.getItem(TOKEN_KEY)) {
+        window.location.replace('/panel/');
+      }
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const token = tokenInput.value.trim();
+
+        if (!token) {
+          message.textContent = 'Ingresá un token válido.';
+          message.className = 'mt-3 text-sm text-rose-300';
+          return;
+        }
+
+        try {
+          const response = await fetch('/api/panel/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: 'admin', password: token })
+          });
+
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || 'No se pudo iniciar sesión.');
+          }
+
+          localStorage.setItem(TOKEN_KEY, data.token);
+          localStorage.setItem('panel_user', JSON.stringify(data.user));
+          window.location.replace('/panel/');
+        } catch (error) {
+          message.textContent = error.message;
+          message.className = 'mt-3 text-sm text-rose-300';
+        }
+      });
+    </script>
+  </body>
+</html>

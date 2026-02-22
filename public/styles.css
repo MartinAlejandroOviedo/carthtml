@@ -1,0 +1,88 @@
+.bg-mesh {
+  background:
+    radial-gradient(circle at 10% 10%, rgba(14, 165, 233, 0.25), transparent 35%),
+    radial-gradient(circle at 80% 0%, rgba(56, 189, 248, 0.22), transparent 30%),
+    radial-gradient(circle at 50% 100%, rgba(2, 132, 199, 0.2), transparent 40%),
+    linear-gradient(180deg, #020617 0%, #0f172a 50%, #111827 100%);
+}
+
+.category-chip {
+  white-space: nowrap;
+}
+
+.product-card {
+  animation: reveal 420ms ease both;
+}
+
+/* Layout helpers for sticky footer */
+main {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+main > * {
+  flex: 0 0 auto;
+  width: 100%;
+}
+
+#site-footer {
+  margin-top: auto;
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.has-tooltip {
+  position: relative;
+}
+
+.has-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 120%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.95);
+  color: #e2e8f0;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 10px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.has-tooltip:hover::after,
+.has-tooltip:focus-visible::after {
+  opacity: 1;
+}
+
+.slider-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+}
+
+.slider-prev {
+  left: 0.75rem;
+}
+
+.slider-next {
+  right: 0.75rem;
+}
+
+body[data-page='cart'] #site-header #cart-toggle {
+  display: none !important;
+}

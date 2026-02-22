@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Panel | SLStore</title>
+    <link rel="stylesheet" href="/tailwind.css" />
+    <link rel="stylesheet" href="/styles.css" />
+    <script>
+      const TOKEN_KEY = 'panel_token';
+      if (!localStorage.getItem(TOKEN_KEY)) {
+        window.location.replace('/panel/login.html');
+      }
+    </script>
+  </head>
+  <body class="bg-slate-950 text-slate-100 font-body min-h-screen">
+    <div class="fixed inset-0 -z-10 bg-mesh"></div>
+
+    <main class="mx-auto max-w-6xl px-4 py-6 space-y-4">
+      <div id="panel-topbar"></div>
+      <div id="panel-nav"></div>
+
+      <section class="rounded-2xl border border-white/10 bg-slate-900/75 p-4">
+        <div class="mb-3 flex items-center justify-between gap-3">
+          <p id="view-title" class="font-display text-2xl uppercase text-white">CRUD</p>
+          <div class="flex gap-2">
+            <button id="refresh-view" class="rounded-lg border border-sky-300/30 bg-sky-500/20 px-3 py-1.5 text-xs text-sky-100">Recargar</button>
+            <button id="new-item" class="rounded-lg border border-emerald-300/30 bg-emerald-500/20 px-3 py-1.5 text-xs text-emerald-100">Nuevo</button>
+          </div>
+        </div>
+
+        <p id="panel-message" class="mt-3 text-sm text-slate-300"></p>
+
+        <div class="mt-4 overflow-auto">
+          <table class="w-full min-w-[760px] text-sm">
+            <thead>
+              <tr id="crud-head" class="border-b border-white/10 text-left text-slate-300"></tr>
+            </thead>
+            <tbody id="crud-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <div id="form-backdrop" class="fixed inset-0 z-30 hidden bg-slate-950/70"></div>
+    <aside id="form-offcanvas" class="fixed inset-y-0 right-0 z-40 flex w-full max-w-xl translate-x-full flex-col border-l border-white/10 bg-slate-900 shadow-2xl transition-transform duration-300">
+      <div class="flex items-center justify-between border-b border-white/10 p-4">
+        <p id="form-title" class="font-display text-xl uppercase text-white">Nuevo registro</p>
+        <button id="close-form" class="text-sm text-slate-300">Cerrar</button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-4">
+        <form id="crud-form" class="grid gap-2 sm:grid-cols-2"></form>
+      </div>
+
+      <div class="border-t border-white/10 p-4">
+        <div class="flex gap-2">
+          <button id="save-item" class="rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white">Guardar</button>
+          <button id="clear-form" type="button" class="rounded-xl border border-white/20 px-4 py-2 text-sm text-slate-100">Limpiar</button>
+        </div>
+      </div>
+    </aside>
+
+    <script type="module" src="/panel/js/app.js"></script>
+  </body>
+</html>
