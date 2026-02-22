@@ -41,8 +41,8 @@ const WHATSAPP_NUMBER = process.env.WHATSAPP_NUMBER || '5491112345678';
 const uploadDir = path.join(__dirname, 'public', 'uploads');
 const typedImagesDir = path.join(uploadDir, 'images');
 const IMAGE_VARIANTS = {
-  slider: { width: 1600, height: 900 },
-  card: { width: 960, height: 720 }
+  slider: { width: 500, height: 300 },
+  card: { width: 360, height: 190 }
 };
 
 fs.mkdirSync(uploadDir, { recursive: true, mode: 0o755 });
@@ -167,14 +167,6 @@ function resolveUploadFilePath(fileUrl) {
   return resolved;
 }
 
-function buildVariantUrlFromOriginal(fileUrl, variant) {
-  const raw = String(fileUrl || '');
-  if (!raw.startsWith('/uploads/')) return null;
-  const parsed = path.posix.parse(raw);
-  if (!parsed.name) return null;
-  return `${parsed.dir}/${parsed.name}-${variant}.webp`;
-}
-
 async function deleteUploadedFileByUrl(fileUrl) {
   const target = resolveUploadFilePath(fileUrl);
   if (!target) return;
@@ -187,11 +179,27 @@ async function deleteUploadedFileByUrl(fileUrl) {
   }
 }
 
-async function deleteUploadedVariantsByUrl(fileUrl) {
-  const sliderUrl = buildVariantUrlFromOriginal(fileUrl, 'slider');
-  const cardUrl = buildVariantUrlFromOriginal(fileUrl, 'card');
-  if (sliderUrl) await deleteUploadedFileByUrl(sliderUrl);
-  if (cardUrl) await deleteUploadedFileByUrl(cardUrl);
+function buildImageFamilyUrls(fileUrl) {
+  const raw = String(fileUrl || '');
+  if (!raw.startsWith('/uploads/')) return [];
+
+  const parsed = path.posix.parse(raw);
+  if (!parsed.dir || !parsed.name) return [raw];
+
+  // If the saved URL is already a variant (`-slider`/`-card`), recover the base image name.
+  const baseName = parsed.name.replace(/-(slider|card)$/i, '');
+  const originalUrl = `${parsed.dir}/${baseName}${parsed.ext}`;
+  const sliderUrl = `${parsed.dir}/${baseName}-slider.webp`;
+  const cardUrl = `${parsed.dir}/${baseName}-card.webp`;
+
+  return [...new Set([raw, originalUrl, sliderUrl, cardUrl])];
+}
+
+async function deleteUploadedImageFamilyByUrl(fileUrl) {
+  const familyUrls = buildImageFamilyUrls(fileUrl);
+  for (const url of familyUrls) {
+    await deleteUploadedFileByUrl(url);
+  }
 }
 
 const imageUpload = multer({
@@ -331,8 +339,7 @@ app.post('/api/panel/uploads/image', (req, res) => {
     try {
       variants = await generateImageVariants(req.file, uploadContext);
     } catch (variantError) {
-      await deleteUploadedFileByUrl(url);
-      await deleteUploadedVariantsByUrl(url);
+      await deleteUploadedImageFamilyByUrl(url);
       return res.status(500).json({ error: 'No se pudieron generar variantes de imagen.' });
     }
 
@@ -375,8 +382,7 @@ app.post('/api/panel/uploads/images', (req, res) => {
           cardUrl: variants.cardUrl
         });
       } catch (_variantError) {
-        await deleteUploadedFileByUrl(url);
-        await deleteUploadedVariantsByUrl(url);
+        await deleteUploadedImageFamilyByUrl(url);
         return res.status(500).json({ error: 'No se pudieron generar variantes de imagen.' });
       }
     }
@@ -505,8 +511,7 @@ app.delete('/api/panel/product-images/:id', async (req, res) => {
     const ok = await deleteProductImage(id);
     if (!ok) return res.status(404).json({ error: 'Imagen no encontrada.' });
     if (current && current.url) {
-      await deleteUploadedFileByUrl(current.url);
-      await deleteUploadedVariantsByUrl(current.url);
+      await deleteUploadedImageFamilyByUrl(current.url);
     }
     return res.json({ ok: true });
   } catch (error) {
@@ -605,8 +610,7 @@ app.delete('/api/panel/products/:id', async (req, res) => {
     if (!ok) return res.status(404).json({ error: 'Producto no encontrado.' });
     if (Array.isArray(images)) {
       for (const image of images) {
-        await deleteUploadedFileByUrl(image.url);
-        await deleteUploadedVariantsByUrl(image.url);
+        await deleteUploadedImageFamilyByUrl(image.url);
       }
     }
     return res.json({ ok: true });
