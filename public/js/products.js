@@ -12,10 +12,16 @@ export function renderProducts(products, onAddToCart) {
 
   grid.innerHTML = products
     .map(
-      (product, index) => `
+      (product, index) => {
+        const cardImage =
+          product.imageCardUrl ||
+          (Array.isArray(product.images) && product.images[0] && (product.images[0].cardUrl || product.images[0].url)) ||
+          product.imageUrl;
+
+        return `
       <article class="product-card overflow-hidden rounded-3xl border border-white/10 bg-slate-900/75 shadow-xl shadow-slate-950/40" style="animation-delay:${index * 40}ms">
         <a href="/product.html?id=${product.id}" class="block">
-          <img src="${product.imageUrl}" alt="${product.name}" class="h-48 w-full object-cover" loading="lazy" />
+          <img src="${cardImage}" alt="${product.name}" class="h-48 w-full object-cover" loading="lazy" />
         </a>
         <div class="space-y-2 p-4">
           <p class="text-xs uppercase tracking-wide text-sky-300/85">${product.category}</p>
@@ -46,7 +52,8 @@ export function renderProducts(products, onAddToCart) {
           </div>
         </div>
       </article>
-    `
+    `;
+      }
     )
     .join('');
 

@@ -2,6 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
+const sharp = require('sharp');
 const {
   initDb,
   getProducts,
@@ -23,6 +24,7 @@ const {
   createProductImage,
   updateProductImage,
   deleteProductImage,
+  setProductMainImage,
   listPages,
   createPage,
   updatePage,
@@ -37,15 +39,55 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const WHATSAPP_NUMBER = process.env.WHATSAPP_NUMBER || '5491112345678';
 const uploadDir = path.join(__dirname, 'public', 'uploads');
-const productImagesDir = path.join(uploadDir, 'images');
+const typedImagesDir = path.join(uploadDir, 'images');
+const IMAGE_VARIANTS = {
+  slider: { width: 1600, height: 900 },
+  card: { width: 960, height: 720 }
+};
 
 fs.mkdirSync(uploadDir, { recursive: true, mode: 0o755 });
-fs.mkdirSync(productImagesDir, { recursive: true, mode: 0o755 });
+fs.mkdirSync(typedImagesDir, { recursive: true, mode: 0o755 });
 
 function parseProductId(raw) {
   const value = Number(raw);
   if (!Number.isInteger(value) || value <= 0) return null;
   return value;
+}
+
+function normalizeEntityType(raw) {
+  const type = String(raw || '')
+    .trim()
+    .toLowerCase();
+  if (!type) return null;
+  if (!/^[a-z0-9][a-z0-9_-]{1,39}$/.test(type)) return null;
+  return type;
+}
+
+function normalizeEntityId(raw) {
+  const asNumber = parseProductId(raw);
+  if (asNumber) return String(asNumber);
+
+  const id = String(raw || '')
+    .trim()
+    .toLowerCase();
+  if (!id) return null;
+  if (!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(id)) return null;
+  return id;
+}
+
+function parseUploadContext(req) {
+  const entityType = normalizeEntityType(req.body?.entityType || req.query?.entityType);
+  const entityId = normalizeEntityId(req.body?.entityId || req.body?.entityKey || req.query?.entityId || req.query?.entityKey);
+  if (entityType && entityId) {
+    return { entityType, entityId };
+  }
+
+  const productId = parseProductId(req.body?.productId) || parseProductId(req.query?.productId);
+  if (productId) {
+    return { entityType: 'product', entityId: String(productId) };
+  }
+
+  return null;
 }
 
 function safeExtension(fileName) {
@@ -71,9 +113,45 @@ function uniqueFileName(targetDir, originalName) {
   return candidate;
 }
 
-function publicUrlForUpload(productId, fileName) {
-  if (productId) return `/uploads/images/${productId}/${fileName}`;
+function publicUrlForUpload(uploadContext, fileName) {
+  if (uploadContext && uploadContext.entityType && uploadContext.entityId) {
+    return `/uploads/images/${uploadContext.entityType}/${uploadContext.entityId}/${fileName}`;
+  }
   return `/uploads/${fileName}`;
+}
+
+function variantFileName(originalFileName, variant) {
+  const base = path.basename(String(originalFileName || ''), path.extname(String(originalFileName || ''))) || 'img';
+  return `${base}-${variant}.webp`;
+}
+
+async function generateImageVariants(file, uploadContext) {
+  if (!file || !file.path || !file.filename) {
+    throw new Error('Archivo inválido para generar variantes.');
+  }
+
+  const targetDir = path.dirname(file.path);
+  const sliderName = variantFileName(file.filename, 'slider');
+  const cardName = variantFileName(file.filename, 'card');
+  const sliderPath = path.join(targetDir, sliderName);
+  const cardPath = path.join(targetDir, cardName);
+
+  await sharp(file.path)
+    .rotate()
+    .resize(IMAGE_VARIANTS.slider.width, IMAGE_VARIANTS.slider.height, { fit: 'cover', position: 'center' })
+    .webp({ quality: 84 })
+    .toFile(sliderPath);
+
+  await sharp(file.path)
+    .rotate()
+    .resize(IMAGE_VARIANTS.card.width, IMAGE_VARIANTS.card.height, { fit: 'cover', position: 'center' })
+    .webp({ quality: 84 })
+    .toFile(cardPath);
+
+  return {
+    sliderUrl: publicUrlForUpload(uploadContext, sliderName),
+    cardUrl: publicUrlForUpload(uploadContext, cardName)
+  };
 }
 
 function resolveUploadFilePath(fileUrl) {
@@ -89,6 +167,14 @@ function resolveUploadFilePath(fileUrl) {
   return resolved;
 }
 
+function buildVariantUrlFromOriginal(fileUrl, variant) {
+  const raw = String(fileUrl || '');
+  if (!raw.startsWith('/uploads/')) return null;
+  const parsed = path.posix.parse(raw);
+  if (!parsed.name) return null;
+  return `${parsed.dir}/${parsed.name}-${variant}.webp`;
+}
+
 async function deleteUploadedFileByUrl(fileUrl) {
   const target = resolveUploadFilePath(fileUrl);
   if (!target) return;
@@ -101,17 +187,28 @@ async function deleteUploadedFileByUrl(fileUrl) {
   }
 }
 
+async function deleteUploadedVariantsByUrl(fileUrl) {
+  const sliderUrl = buildVariantUrlFromOriginal(fileUrl, 'slider');
+  const cardUrl = buildVariantUrlFromOriginal(fileUrl, 'card');
+  if (sliderUrl) await deleteUploadedFileByUrl(sliderUrl);
+  if (cardUrl) await deleteUploadedFileByUrl(cardUrl);
+}
+
 const imageUpload = multer({
   storage: multer.diskStorage({
     destination: (req, _file, cb) => {
-      const productId = parseProductId(req.body?.productId);
-      const targetDir = productId ? path.join(productImagesDir, String(productId)) : uploadDir;
+      const uploadContext = parseUploadContext(req);
+      const targetDir = uploadContext
+        ? path.join(typedImagesDir, uploadContext.entityType, uploadContext.entityId)
+        : uploadDir;
       fs.mkdirSync(targetDir, { recursive: true, mode: 0o755 });
       cb(null, targetDir);
     },
     filename: (req, file, cb) => {
-      const productId = parseProductId(req.body?.productId);
-      const targetDir = productId ? path.join(productImagesDir, String(productId)) : uploadDir;
+      const uploadContext = parseUploadContext(req);
+      const targetDir = uploadContext
+        ? path.join(typedImagesDir, uploadContext.entityType, uploadContext.entityId)
+        : uploadDir;
       cb(null, uniqueFileName(targetDir, file.originalname || 'img.jpg'));
     }
   }),
@@ -212,12 +309,14 @@ app.get('/api/panel/uploads/health', (_req, res) => {
     service: 'panel-uploads',
     endpoint: '/api/panel/uploads/image',
     uploadDir: '/public/uploads',
-    productImagesDir: '/public/uploads/images/:productId'
+    typedImagesDir: '/public/uploads/images/:entityType/:entityId',
+    backwardCompat: 'Acepta productId y lo mapea a entityType=product',
+    variants: IMAGE_VARIANTS
   });
 });
 
 app.post('/api/panel/uploads/image', (req, res) => {
-  imageUpload.single('image')(req, res, (error) => {
+  imageUpload.single('image')(req, res, async (error) => {
     if (error) {
       return res.status(400).json({ error: error.message || 'No se pudo subir la imagen.' });
     }
@@ -226,17 +325,32 @@ app.post('/api/panel/uploads/image', (req, res) => {
       return res.status(400).json({ error: 'No se recibió archivo.' });
     }
 
-    const productId = parseProductId(req.body?.productId);
+    const uploadContext = parseUploadContext(req);
+    const url = publicUrlForUpload(uploadContext, req.file.filename);
+    let variants = { sliderUrl: url, cardUrl: url };
+    try {
+      variants = await generateImageVariants(req.file, uploadContext);
+    } catch (variantError) {
+      await deleteUploadedFileByUrl(url);
+      await deleteUploadedVariantsByUrl(url);
+      return res.status(500).json({ error: 'No se pudieron generar variantes de imagen.' });
+    }
+
     return res.status(201).json({
       ok: true,
       fileName: req.file.filename,
-      url: publicUrlForUpload(productId, req.file.filename)
+      entityType: uploadContext?.entityType || null,
+      entityId: uploadContext?.entityId || null,
+      url,
+      originalUrl: url,
+      sliderUrl: variants.sliderUrl,
+      cardUrl: variants.cardUrl
     });
   });
 });
 
 app.post('/api/panel/uploads/images', (req, res) => {
-  imageUpload.array('images', 20)(req, res, (error) => {
+  imageUpload.array('images', 20)(req, res, async (error) => {
     if (error) {
       return res.status(400).json({ error: error.message || 'No se pudieron subir las imagenes.' });
     }
@@ -245,14 +359,32 @@ app.post('/api/panel/uploads/images', (req, res) => {
       return res.status(400).json({ error: 'No se recibieron archivos.' });
     }
 
-    const productId = parseProductId(req.body?.productId);
+    const uploadContext = parseUploadContext(req);
+    const files = [];
+    for (const file of req.files) {
+      const url = publicUrlForUpload(uploadContext, file.filename);
+      try {
+        const variants = await generateImageVariants(file, uploadContext);
+        files.push({
+          fileName: file.filename,
+          entityType: uploadContext?.entityType || null,
+          entityId: uploadContext?.entityId || null,
+          url,
+          originalUrl: url,
+          sliderUrl: variants.sliderUrl,
+          cardUrl: variants.cardUrl
+        });
+      } catch (_variantError) {
+        await deleteUploadedFileByUrl(url);
+        await deleteUploadedVariantsByUrl(url);
+        return res.status(500).json({ error: 'No se pudieron generar variantes de imagen.' });
+      }
+    }
+
     return res.status(201).json({
       ok: true,
-      files: req.files.map((file) => ({
-        fileName: file.filename,
-        url: publicUrlForUpload(productId, file.filename)
-      })),
-      urls: req.files.map((file) => publicUrlForUpload(productId, file.filename))
+      files,
+      urls: files.map((file) => file.url)
     });
   });
 });
@@ -374,6 +506,7 @@ app.delete('/api/panel/product-images/:id', async (req, res) => {
     if (!ok) return res.status(404).json({ error: 'Imagen no encontrada.' });
     if (current && current.url) {
       await deleteUploadedFileByUrl(current.url);
+      await deleteUploadedVariantsByUrl(current.url);
     }
     return res.json({ ok: true });
   } catch (error) {
@@ -455,7 +588,7 @@ app.patch('/api/panel/products/:id/image', async (req, res) => {
     const { imageUrl } = req.body || {};
     if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'ID inválido.' });
     if (!String(imageUrl || '').trim()) return res.status(400).json({ error: 'imageUrl es obligatorio.' });
-    const updated = await updateProductAdmin(id, { imageUrl });
+    const updated = await setProductMainImage(id, imageUrl);
     if (!updated) return res.status(404).json({ error: 'Producto no encontrado.' });
     return res.json(updated);
   } catch (error) {
@@ -473,6 +606,7 @@ app.delete('/api/panel/products/:id', async (req, res) => {
     if (Array.isArray(images)) {
       for (const image of images) {
         await deleteUploadedFileByUrl(image.url);
+        await deleteUploadedVariantsByUrl(image.url);
       }
     }
     return res.json({ ok: true });

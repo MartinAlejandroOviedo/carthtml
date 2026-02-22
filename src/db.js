@@ -5,6 +5,7 @@ const sqlite3 = require('sqlite3').verbose();
 const dbPath = path.join(__dirname, '..', 'data', 'store.sqlite');
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 const db = new sqlite3.Database(dbPath);
+const UPLOADS_ROOT = path.join(__dirname, '..', 'public', 'uploads');
 
 const DEFAULT_CATEGORIES = [
   'Fútbol',
@@ -143,6 +144,64 @@ function formatProductRow(row) {
     stockQty: Number(row.stockQty || 0),
     detailText: row.detailText || ''
   };
+}
+
+function resolveUploadAbsolutePath(fileUrl) {
+  const raw = String(fileUrl || '');
+  if (!raw.startsWith('/uploads/')) return null;
+  const relative = raw.replace(/^\/uploads\//, '');
+  const safeRelative = path.normalize(relative).replace(/^(\.\.(\/|\\|$))+/, '');
+  const full = path.join(UPLOADS_ROOT, safeRelative);
+  const uploadsRootResolved = path.resolve(UPLOADS_ROOT) + path.sep;
+  const resolved = path.resolve(full);
+  if (!resolved.startsWith(uploadsRootResolved)) return null;
+  return resolved;
+}
+
+function buildVariantUrl(fileUrl, variant) {
+  const raw = String(fileUrl || '');
+  if (!raw.startsWith('/uploads/')) return null;
+  const parsed = path.posix.parse(raw);
+  if (!parsed.name) return null;
+  return `${parsed.dir}/${parsed.name}-${variant}.webp`;
+}
+
+function resolveImageWithVariants(imageRow, fallbackAlt = '') {
+  const normalizedUrl = normalizeText(imageRow?.url, 1000);
+  if (!normalizedUrl) return null;
+
+  const sliderCandidate = buildVariantUrl(normalizedUrl, 'slider');
+  const cardCandidate = buildVariantUrl(normalizedUrl, 'card');
+  const sliderPath = sliderCandidate ? resolveUploadAbsolutePath(sliderCandidate) : null;
+  const cardPath = cardCandidate ? resolveUploadAbsolutePath(cardCandidate) : null;
+  const sliderExists = Boolean(sliderPath && fs.existsSync(sliderPath));
+  const cardExists = Boolean(cardPath && fs.existsSync(cardPath));
+
+  return {
+    url: normalizedUrl,
+    alt: normalizeText(imageRow?.alt ?? imageRow?.altText ?? fallbackAlt, 160),
+    sliderUrl: sliderExists ? sliderCandidate : normalizedUrl,
+    cardUrl: cardExists ? cardCandidate : normalizedUrl
+  };
+}
+
+function buildProductImages(mainUrl, imageRows, fallbackAlt) {
+  const normalizedMain = normalizeText(mainUrl, 1000);
+  const rows = Array.isArray(imageRows) ? [...imageRows] : [];
+
+  if (!rows.length) {
+    return normalizedMain ? [resolveImageWithVariants({ url: normalizedMain, alt: fallbackAlt || '' }, fallbackAlt)].filter(Boolean) : [];
+  }
+
+  const mainIndex = normalizedMain ? rows.findIndex((img) => img.url === normalizedMain) : -1;
+  if (mainIndex > 0) {
+    const [main] = rows.splice(mainIndex, 1);
+    rows.unshift(main);
+  } else if (mainIndex === -1 && normalizedMain) {
+    rows.unshift({ url: normalizedMain, alt: fallbackAlt || '' });
+  }
+
+  return rows.map((img) => resolveImageWithVariants(img, fallbackAlt)).filter(Boolean);
 }
 
 function fallbackByCategory(category, description) {
@@ -591,7 +650,10 @@ async function getProducts() {
   return rows.map((row) => {
     const base = formatProductRow(row);
     base.categories = categoriesByProduct.get(row.id) || [row.category];
-    base.images = imagesByProduct.get(row.id) || [{ url: row.imageUrl, alt: row.name }];
+    base.images = buildProductImages(row.imageUrl, imagesByProduct.get(row.id) || [], row.name);
+    const main = base.images[0] || resolveImageWithVariants({ url: row.imageUrl, alt: row.name }, row.name);
+    base.imageSliderUrl = main && main.sliderUrl ? main.sliderUrl : row.imageUrl;
+    base.imageCardUrl = main && main.cardUrl ? main.cardUrl : row.imageUrl;
     return base;
   });
 }
@@ -634,7 +696,10 @@ async function getProductById(productId) {
 
   const base = formatProductRow(row);
   base.categories = categories.length ? categories.map((c) => c.name) : [row.category];
-  base.images = images.length ? images.map((img) => ({ url: img.url, alt: img.altText })) : [{ url: row.imageUrl, alt: row.name }];
+  base.images = buildProductImages(row.imageUrl, images, row.name);
+  const main = base.images[0] || resolveImageWithVariants({ url: row.imageUrl, alt: row.name }, row.name);
+  base.imageSliderUrl = main && main.sliderUrl ? main.sliderUrl : row.imageUrl;
+  base.imageCardUrl = main && main.cardUrl ? main.cardUrl : row.imageUrl;
   return base;
 }
 
@@ -911,6 +976,52 @@ async function syncProductMainImage(productId) {
   }
 }
 
+async function setProductMainImage(productId, imageUrl) {
+  const normalizedProductId = Number(productId);
+  const normalizedImageUrl = normalizeText(imageUrl, 1000);
+
+  if (!Number.isInteger(normalizedProductId) || normalizedProductId <= 0 || !normalizedImageUrl) {
+    throw new Error('Imagen principal invalida.');
+  }
+
+  const current = await get('SELECT id FROM products WHERE id = ?', [normalizedProductId]);
+  if (!current) return null;
+
+  const images = await all(
+    `SELECT id, url, sort_order as sortOrder
+     FROM product_images
+     WHERE product_id = ?
+     ORDER BY sort_order ASC, id ASC`,
+    [normalizedProductId]
+  );
+
+  await run('BEGIN TRANSACTION');
+  try {
+    const selectedIndex = images.findIndex((img) => img.url === normalizedImageUrl);
+    if (selectedIndex >= 0) {
+      const ordered = [images[selectedIndex], ...images.filter((_img, index) => index !== selectedIndex)];
+      for (let index = 0; index < ordered.length; index += 1) {
+        const image = ordered[index];
+        if (Number(image.sortOrder) !== index) {
+          await run('UPDATE product_images SET sort_order = ? WHERE id = ?', [index, image.id]);
+        }
+      }
+    }
+
+    await run('UPDATE products SET image_url = ? WHERE id = ?', [normalizedImageUrl, normalizedProductId]);
+    await run('COMMIT');
+  } catch (error) {
+    await run('ROLLBACK');
+    throw error;
+  }
+
+  return get(
+    `SELECT id, name, category, price_ars as priceArs, description, image_url as imageUrl
+     FROM products WHERE id = ?`,
+    [normalizedProductId]
+  );
+}
+
 async function createProductImage({ productId, url, altText = '', sortOrder = 0 }) {
   const normalizedProductId = Number(productId);
   const normalizedUrl = normalizeText(url, 1000);
@@ -1061,11 +1172,7 @@ async function createProductAdmin({ name, category, priceArs, description, image
   );
 
   await ensureCategoriesAndImagesFromProducts();
-  return get(
-    `SELECT id, name, category, price_ars as priceArs, description, image_url as imageUrl
-     FROM products WHERE id = ?`,
-    [result.id]
-  );
+  return setProductMainImage(result.id, normalizedImageUrl);
 }
 
 async function updateProductAdmin(productId, { name, category, priceArs, description, imageUrl }) {
@@ -1090,11 +1197,7 @@ async function updateProductAdmin(productId, { name, category, priceArs, descrip
   );
 
   await ensureCategoriesAndImagesFromProducts();
-  return get(
-    `SELECT id, name, category, price_ars as priceArs, description, image_url as imageUrl
-     FROM products WHERE id = ?`,
-    [productId]
-  );
+  return setProductMainImage(productId, nextImageUrl);
 }
 
 async function deleteProductAdmin(productId) {
@@ -1125,6 +1228,7 @@ module.exports = {
   createProductImage,
   updateProductImage,
   deleteProductImage,
+  setProductMainImage,
   listPages,
   createPage,
   updatePage,

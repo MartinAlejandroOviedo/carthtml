@@ -53,19 +53,59 @@ function buildShareData(product) {
   };
 }
 
+function resolveProductImages(product) {
+  const rows = Array.isArray(product.images)
+    ? product.images
+        .filter((img) => img && img.url)
+        .map((img) => ({
+          url: img.url,
+          alt: img.alt || product.name,
+          sliderUrl: img.sliderUrl || img.url,
+          cardUrl: img.cardUrl || img.url
+        }))
+    : [];
+
+  if (!rows.length) {
+    return [
+      {
+        url: product.imageUrl,
+        alt: product.name,
+        sliderUrl: product.imageSliderUrl || product.imageUrl,
+        cardUrl: product.imageCardUrl || product.imageUrl
+      }
+    ];
+  }
+
+  const mainUrl = String(product.imageUrl || '').trim();
+  const mainIndex = mainUrl ? rows.findIndex((img) => img.url === mainUrl) : -1;
+  if (mainIndex > 0) {
+    const [mainImage] = rows.splice(mainIndex, 1);
+    rows.unshift(mainImage);
+  } else if (mainIndex === -1 && mainUrl) {
+    rows.unshift({
+      url: mainUrl,
+      alt: product.name,
+      sliderUrl: product.imageSliderUrl || mainUrl,
+      cardUrl: product.imageCardUrl || mainUrl
+    });
+  }
+
+  return rows;
+}
+
 function renderProduct(product) {
   const colors = product.colors?.length ? product.colors : defaultColorsFor(product);
   const sizes = product.sizes?.length ? product.sizes : defaultSizesFor(product);
   const detailText = product.detailText || product.description;
   const share = buildShareData(product);
-  const images = product.images?.length ? product.images : [{ url: product.imageUrl, alt: product.name }];
+  const images = resolveProductImages(product);
   const hasSlider = images.length > 1;
 
   stateEl.innerHTML = `
     <article class="grid gap-4 md:grid-cols-2">
       <div class="space-y-3">
         <div class="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-800/50">
-          <img id="product-main-image" src="${images[0].url}" alt="${images[0].alt || product.name}" class="h-full max-h-[420px] w-full object-cover" />
+          <img id="product-main-image" src="${images[0].sliderUrl || images[0].url}" alt="${images[0].alt || product.name}" class="h-full max-h-[420px] w-full object-cover" />
           ${
             hasSlider
               ? `
@@ -107,7 +147,7 @@ function renderProduct(product) {
                 class="product-thumb overflow-hidden rounded-lg border border-white/15 bg-slate-900/50 ${index === 0 ? 'ring-2 ring-sky-400' : ''}"
                 aria-label="Ver imagen ${index + 1}"
               >
-                <img src="${img.url}" alt="${img.alt || product.name}" class="h-16 w-full object-cover" />
+                <img src="${img.cardUrl || img.url}" alt="${img.alt || product.name}" class="h-16 w-full object-cover" />
               </button>
             `
               )
@@ -233,7 +273,7 @@ function renderProduct(product) {
     if (!mainImageEl || !images.length) return;
     imageIndex = (nextIndex + images.length) % images.length;
     const image = images[imageIndex];
-    mainImageEl.src = image.url;
+    mainImageEl.src = image.sliderUrl || image.url;
     mainImageEl.alt = image.alt || product.name;
     if (counterEl) {
       counterEl.textContent = `${imageIndex + 1} / ${images.length}`;

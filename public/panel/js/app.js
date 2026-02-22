@@ -220,10 +220,19 @@ async function uploadImageFile(file, productId = null) {
   }
 
   const data = new FormData();
-  if (productId) data.append('productId', String(productId));
+  const params = new URLSearchParams();
+  if (productId) {
+    data.append('productId', String(productId));
+    data.append('entityType', 'product');
+    data.append('entityId', String(productId));
+    params.set('productId', String(productId));
+    params.set('entityType', 'product');
+    params.set('entityId', String(productId));
+  }
   data.append('image', file);
+  const query = params.toString() ? `?${params.toString()}` : '';
 
-  const response = await fetch('/api/panel/uploads/image', {
+  const response = await fetch(`/api/panel/uploads/image${query}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`
@@ -244,10 +253,19 @@ async function uploadImageFiles(files, productId = null) {
   }
 
   const data = new FormData();
-  if (productId) data.append('productId', String(productId));
+  const params = new URLSearchParams();
+  if (productId) {
+    data.append('productId', String(productId));
+    data.append('entityType', 'product');
+    data.append('entityId', String(productId));
+    params.set('productId', String(productId));
+    params.set('entityType', 'product');
+    params.set('entityId', String(productId));
+  }
   files.forEach((file) => data.append('images', file));
+  const query = params.toString() ? `?${params.toString()}` : '';
 
-  const response = await fetch('/api/panel/uploads/images', {
+  const response = await fetch(`/api/panel/uploads/images${query}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`
@@ -696,7 +714,10 @@ function setupImageUploadUI() {
       uploadBtn.textContent = 'Subiendo...';
 
       try {
-        const uploadedUrl = await uploadImageFile(file);
+        const currentProductId = Number(productIdInput ? productIdInput.value : 0);
+        const targetProductId =
+          Number.isInteger(currentProductId) && currentProductId > 0 ? currentProductId : null;
+        const uploadedUrl = await uploadImageFile(file, targetProductId);
         if (!uploadedUrl) return;
 
         urlInput.value = uploadedUrl;
