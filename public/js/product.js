@@ -6,6 +6,13 @@ import { formatArs } from './products.js';
 const stateEl = document.getElementById('product-state');
 const cartStore = new CartStore();
 
+function syncHeaderCartCount() {
+  const cartCount = document.getElementById('cart-count');
+  if (!cartCount) return;
+  const qty = cartStore.getItems().reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+  cartCount.textContent = String(qty);
+}
+
 function getProductIdFromUrl() {
   const params = new URLSearchParams(window.location.search);
   return Number(params.get('id'));
@@ -327,8 +334,9 @@ function renderProduct(product) {
       size: sizeEl.value,
       detail: detailEl.value
     });
+    syncHeaderCartCount();
 
-    msgEl.textContent = 'Producto agregado al carrito con sus variantes. Volve al catalogo para finalizar el pedido.';
+    msgEl.textContent = 'Producto agregado al carrito.';
   });
 
   if (copyShareBtn) {
@@ -359,6 +367,7 @@ function renderProduct(product) {
 
 async function bootstrap() {
   await injectLayout();
+  syncHeaderCartCount();
 
   const productId = getProductIdFromUrl();
   if (!Number.isInteger(productId) || productId <= 0) {

@@ -875,7 +875,8 @@ app.post('/api/orders', async (req, res) => {
 
     const settings = await getSettings();
     const whatsappNumber = settings?.whatsappNumber || WHATSAPP_NUMBER;
-    const order = await createOrder({ customer, items, whatsappNumber });
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const order = await createOrder({ customer, items, whatsappNumber, baseUrl });
     return res.status(201).json(order);
   } catch (error) {
     return res.status(400).json({ error: error.message || 'No se pudo crear el pedido.' });

@@ -130,6 +130,7 @@ async function handleCheckout(event) {
       phone: String(formData.get('phone') || '').trim(),
       province: String(formData.get('province') || '').trim(),
       city: String(formData.get('city') || '').trim(),
+      postalCode: String(formData.get('postalCode') || '').trim(),
       deliveryType: String(formData.get('deliveryType') || 'home').trim(),
       deliveryBranch: String(formData.get('deliveryBranch') || '').trim(),
       address: String(formData.get('address') || '').trim(),
@@ -139,8 +140,8 @@ async function handleCheckout(event) {
     items: cartItems
   };
 
-  if (!payload.customer.name || !payload.customer.phone || !payload.customer.province || !payload.customer.city) {
-    showCheckoutMessage('Completá nombre, teléfono, provincia y ciudad para continuar.', true);
+  if (!payload.customer.name || !payload.customer.phone || !payload.customer.province || !payload.customer.city || !payload.customer.postalCode) {
+    showCheckoutMessage('Completá nombre, telefono, provincia, ciudad y codigo postal para continuar.', true);
     return;
   }
   if (payload.customer.deliveryType === 'branch' && !payload.customer.deliveryBranch) {

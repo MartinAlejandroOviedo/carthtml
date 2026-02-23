@@ -58,14 +58,21 @@ export function renderCart({ cartItems, productsById, onRemove, onQtyChange }) {
       const subtotal = product.priceArs * item.quantity;
       total += subtotal;
       const variant = variantText(item);
+      const thumbUrl = product.imageCardUrl || product.imageUrl || '';
+      const thumb = thumbUrl
+        ? `<img src="${thumbUrl}" alt="${product.name}" class="h-14 w-20 rounded-lg border border-white/10 object-cover bg-slate-950/70" loading="lazy" />`
+        : `<div class="flex h-14 w-20 items-center justify-center rounded-lg border border-white/10 bg-slate-950/70 text-[10px] text-slate-500">Sin imagen</div>`;
 
       return `
         <div class="rounded-xl border border-white/10 bg-slate-800/50 p-3">
           <div class="flex items-start justify-between gap-3">
-            <div>
-              <p class="font-semibold text-white">${product.name}</p>
-              <p class="text-sm text-slate-400">${formatArs(product.priceArs)} c/u</p>
-              ${variant ? `<p class="mt-1 text-xs text-slate-300">${variant}</p>` : ''}
+            <div class="flex items-start gap-3">
+              ${thumb}
+              <div>
+                <p class="font-semibold text-white">${product.name}</p>
+                <p class="text-sm text-slate-400">${formatArs(product.priceArs)} c/u</p>
+                ${variant ? `<p class="mt-1 text-xs text-slate-300">${variant}</p>` : ''}
+              </div>
             </div>
             <button data-remove-id="${item.id}" class="text-xs text-rose-300 hover:text-rose-200">Quitar</button>
           </div>

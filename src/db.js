@@ -31,6 +31,16 @@ const DEFAULT_ADMIN_USER = {
 const DEFAULT_STORE_NAME = process.env.STORE_NAME || 'SLStore';
 const DEFAULT_WHATSAPP_NUMBER = String(process.env.WHATSAPP_NUMBER || '5491112345678').replace(/\D+/g, '');
 const SHIPPING_FLAT_ARS = 9500;
+
+function buildAbsoluteUrl(baseUrl, resourcePath) {
+  const rawBase = String(baseUrl || '').trim().replace(/\/+$/, '');
+  const rawPath = String(resourcePath || '').trim();
+  if (!rawPath) return '';
+  if (/^https?:\/\//i.test(rawPath)) return rawPath;
+  if (!rawBase) return rawPath;
+  const normalizedPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+  return `${rawBase}${normalizedPath}`;
+}
 const HELP_PAGE_CONTENT_HTML = `
 <section class="mx-auto max-w-6xl px-4 pt-8">
   <div class="rounded-3xl border border-white/10 bg-slate-900/75 p-5 shadow-2xl shadow-slate-950/60">
@@ -1417,6 +1427,9 @@ function buildWhatsappMessage(order) {
     const attrsText = attrs.length ? ` (${attrs.join(', ')})` : '';
 
     lines.push(`- ${item.name}${attrsText} x${item.quantity} = ${formatCurrency(item.subtotal_ars)}`);
+    if (item.product_url) {
+      lines.push(item.product_url);
+    }
   });
 
   lines.push('');
@@ -1616,6 +1629,7 @@ async function initDb() {
     customer_phone TEXT NOT NULL,
     customer_province TEXT NOT NULL DEFAULT '',
     customer_city TEXT NOT NULL DEFAULT '',
+    customer_postal_code TEXT NOT NULL DEFAULT '',
     delivery_type TEXT NOT NULL DEFAULT 'home',
     delivery_branch TEXT NOT NULL DEFAULT '',
     customer_address TEXT,
@@ -1836,7 +1850,7 @@ async function getProductById(productId) {
   return base;
 }
 
-async function createOrder({ customer, items, whatsappNumber }) {
+async function createOrder({ customer, items, whatsappNumber, baseUrl }) {
   const normalizedItems = items
     .map((item) => ({
       productId: Number(item.productId),
@@ -1855,7 +1869,7 @@ async function createOrder({ customer, items, whatsappNumber }) {
   const placeholders = uniqueProductIds.map(() => '?').join(',');
 
   const productRows = await all(
-    `SELECT id, name, price_ars FROM products WHERE id IN (${placeholders})`,
+    `SELECT id, name, price_ars, image_url FROM products WHERE id IN (${placeholders})`,
     uniqueProductIds
   );
 
@@ -1876,7 +1890,8 @@ async function createOrder({ customer, items, whatsappNumber }) {
       subtotalArs: subtotal,
       color: item.color,
       size: item.size,
-      detailText: item.detailText
+      detailText: item.detailText,
+      productUrl: buildAbsoluteUrl(baseUrl, `/product.html?id=${product.id}`)
     };
   });
 
@@ -1887,6 +1902,7 @@ async function createOrder({ customer, items, whatsappNumber }) {
   const customerPhone = normalizeText(customer?.phone, 80);
   const customerProvince = normalizeText(customer?.province, 80);
   const customerCity = normalizeText(customer?.city, 80);
+  const customerPostalCode = normalizeText(customer?.postalCode || customer?.postal_code, 20);
   const deliveryType = normalizeText(customer?.deliveryType, 20).toLowerCase() === 'branch' ? 'branch' : 'home';
   const customerAddress = normalizeText(customer?.address, 200);
   const deliveryBranch = normalizeText(customer?.deliveryBranch || customer?.branch, 160);
@@ -1897,6 +1913,9 @@ async function createOrder({ customer, items, whatsappNumber }) {
   }
   if (!customerProvince || !customerCity) {
     throw new Error('Provincia y ciudad son obligatorias.');
+  }
+  if (!customerPostalCode) {
+    throw new Error('Codigo postal es obligatorio.');
   }
   if (deliveryType === 'home' && !customerAddress) {
     throw new Error('Para envio a domicilio, ingresa direccion de entrega.');
@@ -1909,13 +1928,14 @@ async function createOrder({ customer, items, whatsappNumber }) {
   try {
     const orderInsert = await run(
       `INSERT INTO orders (
-        customer_name, customer_phone, customer_province, customer_city, delivery_type, delivery_branch, customer_address, notes, total_ars
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        customer_name, customer_phone, customer_province, customer_city, customer_postal_code, delivery_type, delivery_branch, customer_address, notes, total_ars
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         customerName,
         customerPhone,
         customerProvince,
         customerCity,
+        customerPostalCode,
         deliveryType,
         deliveryBranch,
         customerAddress,
@@ -1951,6 +1971,7 @@ async function createOrder({ customer, items, whatsappNumber }) {
       customer_phone: customerPhone,
       customer_province: customerProvince,
       customer_city: customerCity,
+      customer_postal_code: customerPostalCode,
       delivery_type: deliveryType,
       delivery_branch: deliveryBranch,
       customer_address: customerAddress,
@@ -1964,7 +1985,8 @@ async function createOrder({ customer, items, whatsappNumber }) {
         subtotal_ars: item.subtotalArs,
         color: item.color,
         size: item.size,
-        detail_text: item.detailText
+        detail_text: item.detailText,
+        product_url: item.productUrl
       }))
     };
 
@@ -2034,6 +2056,7 @@ async function listOrdersAdmin() {
       o.customer_phone as customerPhone,
       o.customer_province as customerProvince,
       o.customer_city as customerCity,
+      o.customer_postal_code as customerPostalCode,
       o.delivery_type as deliveryType,
       o.delivery_branch as deliveryBranch,
       o.customer_address as customerAddress,
@@ -2076,6 +2099,7 @@ async function createOrderAdmin({
   customerPhone,
   customerProvince,
   customerCity,
+  customerPostalCode,
   deliveryType,
   deliveryBranch,
   customerAddress,
@@ -2087,6 +2111,7 @@ async function createOrderAdmin({
   const normalizedCustomerPhone = normalizeText(customerPhone, 80);
   const normalizedCustomerProvince = normalizeText(customerProvince, 80);
   const normalizedCustomerCity = normalizeText(customerCity, 80);
+  const normalizedCustomerPostalCode = normalizeText(customerPostalCode, 20);
   const normalizedDeliveryType = normalizeText(deliveryType, 20).toLowerCase() === 'branch' ? 'branch' : 'home';
   const normalizedDeliveryBranch = normalizeText(deliveryBranch, 160);
   const normalizedCustomerAddress = normalizeText(customerAddress, 200);
@@ -2098,6 +2123,9 @@ async function createOrderAdmin({
   }
   if (!normalizedCustomerProvince || !normalizedCustomerCity) {
     throw new Error('Provincia y ciudad son obligatorias.');
+  }
+  if (!normalizedCustomerPostalCode) {
+    throw new Error('Codigo postal es obligatorio.');
   }
   if (normalizedDeliveryType === 'home' && !normalizedCustomerAddress) {
     throw new Error('Para envio a domicilio, ingresa direccion.');
@@ -2119,13 +2147,14 @@ async function createOrderAdmin({
   try {
     const inserted = await run(
       `INSERT INTO orders (
-        customer_name, customer_phone, customer_province, customer_city, delivery_type, delivery_branch, customer_address, notes, total_ars
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        customer_name, customer_phone, customer_province, customer_city, customer_postal_code, delivery_type, delivery_branch, customer_address, notes, total_ars
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         normalizedCustomerName,
         normalizedCustomerPhone,
         normalizedCustomerProvince,
         normalizedCustomerCity,
+        normalizedCustomerPostalCode,
         normalizedDeliveryType,
         normalizedDeliveryBranch,
         normalizedCustomerAddress,
@@ -2164,7 +2193,7 @@ async function createOrderAdmin({
 
 async function updateOrderAdmin(
   orderId,
-  { customerName, customerPhone, customerProvince, customerCity, deliveryType, deliveryBranch, customerAddress, notes, totalArs, itemsJson }
+  { customerName, customerPhone, customerProvince, customerCity, customerPostalCode, deliveryType, deliveryBranch, customerAddress, notes, totalArs, itemsJson }
 ) {
   const current = await get('SELECT * FROM orders WHERE id = ?', [orderId]);
   if (!current) return null;
@@ -2173,6 +2202,7 @@ async function updateOrderAdmin(
   const normalizedCustomerPhone = normalizeText(customerPhone ?? current.customer_phone, 80);
   const normalizedCustomerProvince = normalizeText(customerProvince ?? current.customer_province, 80);
   const normalizedCustomerCity = normalizeText(customerCity ?? current.customer_city, 80);
+  const normalizedCustomerPostalCode = normalizeText(customerPostalCode ?? current.customer_postal_code, 20);
   const normalizedDeliveryType = normalizeText(deliveryType ?? current.delivery_type, 20).toLowerCase() === 'branch' ? 'branch' : 'home';
   const normalizedDeliveryBranch = normalizeText(deliveryBranch ?? current.delivery_branch, 160);
   const normalizedCustomerAddress = normalizeText(customerAddress ?? current.customer_address, 200);
@@ -2183,6 +2213,9 @@ async function updateOrderAdmin(
   }
   if (!normalizedCustomerProvince || !normalizedCustomerCity) {
     throw new Error('Provincia y ciudad son obligatorias.');
+  }
+  if (!normalizedCustomerPostalCode) {
+    throw new Error('Codigo postal es obligatorio.');
   }
   if (normalizedDeliveryType === 'home' && !normalizedCustomerAddress) {
     throw new Error('Para envio a domicilio, ingresa direccion.');
@@ -2206,13 +2239,14 @@ async function updateOrderAdmin(
   try {
     await run(
       `UPDATE orders
-       SET customer_name = ?, customer_phone = ?, customer_province = ?, customer_city = ?, delivery_type = ?, delivery_branch = ?, customer_address = ?, notes = ?, total_ars = ?
+       SET customer_name = ?, customer_phone = ?, customer_province = ?, customer_city = ?, customer_postal_code = ?, delivery_type = ?, delivery_branch = ?, customer_address = ?, notes = ?, total_ars = ?
        WHERE id = ?`,
       [
         normalizedCustomerName,
         normalizedCustomerPhone,
         normalizedCustomerProvince,
         normalizedCustomerCity,
+        normalizedCustomerPostalCode,
         normalizedDeliveryType,
         normalizedDeliveryBranch,
         normalizedCustomerAddress,

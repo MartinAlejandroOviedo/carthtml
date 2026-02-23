@@ -45,12 +45,13 @@ const viewConfig = {
     title: 'Pedidos',
     endpoint: 'orders',
     idKey: 'id',
-    columns: ['id', 'customerName', 'customerPhone', 'customerProvince', 'customerCity', 'deliveryType', 'totalArs', 'itemCount', 'createdAt'],
+    columns: ['id', 'customerName', 'customerPhone', 'customerProvince', 'customerCity', 'customerPostalCode', 'deliveryType', 'totalArs', 'itemCount', 'createdAt'],
     fields: [
       { key: 'customerName', label: 'Nombre cliente', type: 'text', required: true, colSpan: 2 },
       { key: 'customerPhone', label: 'Telefono', type: 'text', required: true },
       { key: 'customerProvince', label: 'Provincia', type: 'text', required: true },
       { key: 'customerCity', label: 'Ciudad', type: 'text', required: true },
+      { key: 'customerPostalCode', label: 'Codigo postal', type: 'text', required: true },
       {
         key: 'deliveryType',
         label: 'Tipo de entrega',
@@ -3591,6 +3592,7 @@ function renderTableHead() {
     customerPhone: 'phone',
     customerProvince: 'map-pinned',
     customerCity: 'building-2',
+    customerPostalCode: 'mailbox',
     deliveryType: 'truck',
     totalArs: 'wallet',
     itemCount: 'package'
