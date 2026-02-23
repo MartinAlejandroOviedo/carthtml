@@ -1,6 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
+const { GOOGLE_2026_DEFAULTS, normalizeGoogle2026Text } = require('../mod/google-2026');
+const { SEO_IMAGES_DEFAULTS, normalizeSeoImagesText } = require('../mod/seo-images');
+const { SEO_TECH_FILES_DEFAULTS, normalizeSeoTechFileText } = require('../mod/seo-tech-files');
 
 const dbPath = path.join(__dirname, '..', 'data', 'store.sqlite');
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
@@ -18,12 +21,15 @@ const DEFAULT_CATEGORIES = [
 ];
 
 const HELP_PAGE_TITLE = 'Como pedir de forma rapida';
+const SECURITY_PAGE_TITLE = 'Seguridad y anti scrape';
 const DEFAULT_ADMIN_USER = {
   username: 'admin',
   password: 'admin123',
   fullName: 'Administrador SLStore',
   role: 'admin'
 };
+const DEFAULT_STORE_NAME = process.env.STORE_NAME || 'SLStore';
+const DEFAULT_WHATSAPP_NUMBER = String(process.env.WHATSAPP_NUMBER || '5491112345678').replace(/\D+/g, '');
 const HELP_PAGE_CONTENT_HTML = `
 <section class="mx-auto max-w-6xl px-4 pt-8">
   <div class="rounded-3xl border border-white/10 bg-slate-900/75 p-5 shadow-2xl shadow-slate-950/60">
@@ -78,6 +84,124 @@ const HELP_PAGE_CONTENT_HTML = `
 </section>
 `;
 
+const SECURITY_PAGE_CONTENT_HTML = `
+<section class="mx-auto max-w-6xl px-4 pt-8">
+  <div class="rounded-3xl border border-white/10 bg-slate-900/75 p-5 shadow-2xl shadow-slate-950/60">
+    <p class="font-display text-4xl uppercase leading-none text-white sm:text-5xl">${SECURITY_PAGE_TITLE}</p>
+    <p class="mt-3 max-w-4xl text-sm text-slate-300">
+      Guia operativa para entender tecnicas anti-scraping y preparar defensas en el sitio. Esta pagina es informativa.
+    </p>
+  </div>
+</section>
+
+<section class="mx-auto max-w-6xl px-4 py-6">
+  <div data-security-tabs class="rounded-3xl border border-white/10 bg-slate-900/70 p-4 shadow-xl shadow-slate-950/40">
+    <div role="tablist" aria-label="Seguridad tabs" class="mb-4 flex flex-wrap gap-2">
+      <button type="button" data-tab-target="anti-scrape" class="security-tab-btn rounded-xl border border-sky-300/60 bg-sky-500/25 px-3 py-2 text-sm text-white">Anti Scrape</button>
+      <button type="button" data-tab-target="hardening" class="security-tab-btn rounded-xl border border-white/15 bg-slate-900/60 px-3 py-2 text-sm text-slate-200">Hardening</button>
+      <button type="button" data-tab-target="deteccion" class="security-tab-btn rounded-xl border border-white/15 bg-slate-900/60 px-3 py-2 text-sm text-slate-200">Deteccion</button>
+      <button type="button" data-tab-target="legal" class="security-tab-btn rounded-xl border border-white/15 bg-slate-900/60 px-3 py-2 text-sm text-slate-200">Legal</button>
+    </div>
+
+    <article data-tab-panel="anti-scrape" class="security-tab-panel space-y-4">
+      <div class="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+        <p class="font-display text-2xl uppercase text-white">7 Anti-Scraping Techniques You Need to Know</p>
+        <p class="mt-2 text-sm text-slate-300">
+          Resumen practico basado en Data Journal (2025) sobre como funciona la deteccion de bots y cuales son las barreras mas comunes.
+        </p>
+      </div>
+
+      <div class="grid gap-3 md:grid-cols-2">
+        <div class="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+          <p class="text-xs uppercase tracking-wide text-slate-400">What is Anti-Scraping?</p>
+          <p class="mt-2 text-sm text-slate-300">
+            Conjunto de tecnicas para detectar y bloquear extraccion automatizada de datos. Busca proteger contenido, recursos de servidor y ventaja competitiva.
+          </p>
+        </div>
+        <div class="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+          <p class="text-xs uppercase tracking-wide text-slate-400">Scraping vs Anti-Scraping</p>
+          <p class="mt-2 text-sm text-slate-300">
+            Scraping extrae datos con scripts. Anti-scraping evita esa extraccion. Es una carrera continua: mejores scrapers generan mejores defensas.
+          </p>
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <div class="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+          <p class="font-semibold text-sky-200">1. Login Walls (Auth Walls)</p>
+          <p class="mt-1 text-sm text-slate-300">Restringen contenido a usuarios autenticados.</p>
+          <p class="mt-1 text-xs text-slate-400">Uso defensivo: proteger datos, modelo de suscripcion y cuentas.</p>
+        </div>
+        <div class="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+          <p class="font-semibold text-sky-200">2. IP Address Blocking</p>
+          <p class="mt-1 text-sm text-slate-300">Bloquea IPs con patrones de trafico anomalo o exceso de requests.</p>
+          <p class="mt-1 text-xs text-slate-400">Uso defensivo: rate limiting por IP, ASN y reputacion.</p>
+        </div>
+        <div class="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+          <p class="font-semibold text-sky-200">3. User-Agent and Header Analysis</p>
+          <p class="mt-1 text-sm text-slate-300">Valida coherencia de headers HTTP y firmas de cliente.</p>
+          <p class="mt-1 text-xs text-slate-400">Uso defensivo: detectar agentes falsos y cabeceras incompletas.</p>
+        </div>
+        <div class="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+          <p class="font-semibold text-sky-200">4. Honeypots</p>
+          <p class="mt-1 text-sm text-slate-300">Trampas invisibles para bots (enlaces/campos ocultos).</p>
+          <p class="mt-1 text-xs text-slate-400">Uso defensivo: identificar automatizacion y aplicar bloqueos progresivos.</p>
+        </div>
+        <div class="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+          <p class="font-semibold text-sky-200">5. JavaScript Challenges</p>
+          <p class="mt-1 text-sm text-slate-300">Retos en cliente que separan navegadores reales de scripts simples.</p>
+          <p class="mt-1 text-xs text-slate-400">Uso defensivo: gate de trafico sospechoso con pruebas dinamicas.</p>
+        </div>
+        <div class="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+          <p class="font-semibold text-sky-200">6. CAPTCHAs</p>
+          <p class="mt-1 text-sm text-slate-300">Pruebas humano-bot para proteger formularios y endpoints sensibles.</p>
+          <p class="mt-1 text-xs text-slate-400">Uso defensivo: activar en eventos de riesgo, no en toda la navegacion.</p>
+        </div>
+        <div class="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+          <p class="font-semibold text-sky-200">7. User Behavior Analysis (UBA)</p>
+          <p class="mt-1 text-sm text-slate-300">Analiza patrones de interaccion para detectar automatizacion.</p>
+          <p class="mt-1 text-xs text-slate-400">Uso defensivo: score de riesgo por sesion y bloqueo adaptativo.</p>
+        </div>
+      </div>
+    </article>
+
+    <article data-tab-panel="hardening" class="security-tab-panel hidden space-y-3">
+      <div class="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+        <p class="font-display text-2xl uppercase text-white">Hardening Basico</p>
+        <ul class="mt-2 space-y-2 text-sm text-slate-300">
+          <li>Rate limiting por IP, ruta y usuario autenticado.</li>
+          <li>Validacion de headers, origen y huella de cliente.</li>
+          <li>Bloqueo por reputacion y ASN en trafico malicioso.</li>
+          <li>WAF con reglas adaptadas a endpoints criticos.</li>
+        </ul>
+      </div>
+    </article>
+
+    <article data-tab-panel="deteccion" class="security-tab-panel hidden space-y-3">
+      <div class="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+        <p class="font-display text-2xl uppercase text-white">Deteccion y respuesta</p>
+        <ul class="mt-2 space-y-2 text-sm text-slate-300">
+          <li>Alertas por picos de scraping y variaciones de UA.</li>
+          <li>Trazas por sesion, ip, cookie y fingerprint.</li>
+          <li>Bloqueo temporal, challenge o captcha segun riesgo.</li>
+          <li>Revision continua de falsos positivos.</li>
+        </ul>
+      </div>
+    </article>
+
+    <article data-tab-panel="legal" class="security-tab-panel hidden space-y-3">
+      <div class="rounded-2xl border border-amber-300/30 bg-amber-500/10 p-4">
+        <p class="font-display text-2xl uppercase text-white">Legal y cumplimiento</p>
+        <p class="mt-2 text-sm text-slate-200">
+          Las estrategias de scraping y bypass pueden tener implicancias legales segun jurisdiccion y terminos del sitio.
+          Consultar siempre asesoria legal antes de implementar automatizaciones sobre terceros.
+        </p>
+      </div>
+    </article>
+  </div>
+</section>
+`;
+
 function run(sql, params = []) {
   return new Promise((resolve, reject) => {
     db.run(sql, params, function onRun(err) {
@@ -115,6 +239,219 @@ function formatCurrency(value) {
 
 function normalizeText(value, maxLength = 120) {
   return String(value || '').trim().slice(0, maxLength);
+}
+
+function normalizeWhatsappNumber(value) {
+  return String(value || '')
+    .replace(/\D+/g, '')
+    .slice(0, 20);
+}
+
+function normalizeContentLanguage(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  if (!normalized) return '';
+  if (/^[a-z]{2}(-[a-z]{2})?$/.test(normalized)) return normalized;
+  return normalizeText(normalized, 16);
+}
+
+function normalizeGeoRegion(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .slice(0, 20);
+}
+
+function normalizeGeoPosition(value) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 64);
+}
+
+function normalizeUrl(value, maxLength = 1000) {
+  return String(value || '').trim().slice(0, maxLength);
+}
+
+function normalizeOgType(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  const allowed = new Set(['website', 'article', 'product', 'profile']);
+  return allowed.has(normalized) ? normalized : 'website';
+}
+
+function normalizeOgLocale(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const match = raw.match(/^([a-z]{2})[_-]([a-z]{2})$/i);
+  if (match) {
+    return `${match[1].toLowerCase()}_${match[2].toUpperCase()}`;
+  }
+  return normalizeText(raw, 16);
+}
+
+function normalizeTwitterCardType(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  const allowed = new Set(['summary', 'summary_large_image', 'app', 'player']);
+  return allowed.has(normalized) ? normalized : 'summary_large_image';
+}
+
+function normalizeTwitterHandle(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const normalized = raw.replace(/\s+/g, '').replace(/^@+/, '').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 15);
+  return normalized ? `@${normalized}` : '';
+}
+
+function normalizeSchemaType(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  const allowed = new Set([
+    'article',
+    'webpage',
+    'website',
+    'product',
+    'organization',
+    'localbusiness',
+    'event',
+    'faqpage'
+  ]);
+  if (!allowed.has(normalized)) return 'Article';
+  if (normalized === 'webpage') return 'WebPage';
+  if (normalized === 'website') return 'WebSite';
+  if (normalized === 'localbusiness') return 'LocalBusiness';
+  if (normalized === 'faqpage') return 'FAQPage';
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function normalizeAdvancedImagePreview(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  const allowed = new Set(['none', 'standard', 'large']);
+  return allowed.has(normalized) ? normalized : 'large';
+}
+
+function normalizeDirectiveNumber(value, max = 100000) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed)) return '';
+  if (parsed < -1) return '-1';
+  if (parsed > max) return String(max);
+  return String(parsed);
+}
+
+function normalizeDirectiveText(value, maxLength = 240) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength);
+}
+
+function normalizeHreflangEntries(input) {
+  let parsed = [];
+
+  if (Array.isArray(input)) {
+    parsed = input;
+  } else if (typeof input === 'string') {
+    const raw = input.trim();
+    if (!raw) return [];
+    try {
+      const maybe = JSON.parse(raw);
+      parsed = Array.isArray(maybe) ? maybe : [];
+    } catch (_error) {
+      parsed = raw
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const [lang, url] = line.split(/\s+/, 2);
+          return { lang, url };
+        });
+    }
+  }
+
+  const normalized = [];
+  const seen = new Set();
+
+  parsed.forEach((item) => {
+    const rawLang = typeof item === 'string' ? item : item?.lang || '';
+    const rawUrl = typeof item === 'object' ? item?.url || '' : '';
+    const lang = String(rawLang || '')
+      .trim()
+      .toLowerCase();
+    const url = normalizeUrl(rawUrl, 1000);
+    if (!lang || !url) return;
+    if (!/^(x-default|[a-z]{2,3}(?:-[a-z0-9]{2,8})*)$/i.test(lang)) return;
+    const key = `${lang}|${url}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    normalized.push({ lang, url });
+  });
+
+  return normalized.slice(0, 20);
+}
+
+function stringifyHreflangEntries(input) {
+  return JSON.stringify(normalizeHreflangEntries(input));
+}
+
+function normalizeOgImages(input) {
+  let parsed = [];
+
+  if (Array.isArray(input)) {
+    parsed = input;
+  } else if (typeof input === 'string') {
+    const raw = input.trim();
+    if (raw) {
+      try {
+        const maybeArray = JSON.parse(raw);
+        if (Array.isArray(maybeArray)) parsed = maybeArray;
+      } catch (_error) {
+        parsed = raw
+          .split(/\r?\n|,/)
+          .map((entry) => entry.trim())
+          .filter(Boolean);
+      }
+    }
+  }
+
+  const normalized = [];
+  const seen = new Set();
+
+  for (const item of parsed) {
+    const url = normalizeUrl(typeof item === 'string' ? item : item?.url || '', 1000);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    normalized.push({
+      url,
+      isPrimary: Boolean(typeof item === 'object' && item?.isPrimary)
+    });
+    if (normalized.length >= 12) break;
+  }
+
+  if (!normalized.length) return [];
+
+  const primaryIndex = normalized.findIndex((entry) => entry.isPrimary);
+  if (primaryIndex === -1) {
+    normalized[0].isPrimary = true;
+  } else {
+    normalized.forEach((entry, index) => {
+      entry.isPrimary = index === primaryIndex;
+    });
+  }
+
+  return normalized;
+}
+
+function stringifyOgImages(input) {
+  return JSON.stringify(normalizeOgImages(input));
 }
 
 function slugify(value) {
@@ -248,6 +585,102 @@ async function ensureSchemaMigrations() {
   await addColumnIfMissing('order_items', 'color', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('order_items', 'size', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('order_items', 'detail_text', "TEXT NOT NULL DEFAULT ''");
+
+  await addColumnIfMissing('settings', 'seo_html_meta_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_open_graph_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_twitter_cards_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_advanced_tags_enabled', 'INTEGER NOT NULL DEFAULT 0');
+  await addColumnIfMissing('settings', 'seo_schema_markup_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_html_default_title', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_html_default_description', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_html_default_keywords', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_html_author', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_html_robots_index_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_html_robots_follow_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_html_content_language', "TEXT NOT NULL DEFAULT 'es'");
+  await addColumnIfMissing('settings', 'seo_html_geo_region', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_html_geo_placename', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_html_geo_position', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_og_default_title', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_og_default_description', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_og_images_json', "TEXT NOT NULL DEFAULT '[]'");
+  await addColumnIfMissing('settings', 'seo_og_url', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_og_type', "TEXT NOT NULL DEFAULT 'website'");
+  await addColumnIfMissing('settings', 'seo_og_site_name', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_og_locale', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_twitter_card_type', "TEXT NOT NULL DEFAULT 'summary_large_image'");
+  await addColumnIfMissing('settings', 'seo_twitter_title', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_twitter_description', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_twitter_image_url', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_twitter_site_handle', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_twitter_creator_handle', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_advanced_canonical_url', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_advanced_noarchive_enabled', 'INTEGER NOT NULL DEFAULT 0');
+  await addColumnIfMissing('settings', 'seo_advanced_nosnippet_enabled', 'INTEGER NOT NULL DEFAULT 0');
+  await addColumnIfMissing('settings', 'seo_advanced_noimageindex_enabled', 'INTEGER NOT NULL DEFAULT 0');
+  await addColumnIfMissing('settings', 'seo_advanced_max_snippet', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_advanced_max_image_preview', "TEXT NOT NULL DEFAULT 'large'");
+  await addColumnIfMissing('settings', 'seo_advanced_max_video_preview', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_advanced_unavailable_after', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_advanced_googlebot_rules', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_advanced_googlebot_news_rules', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_advanced_hreflang_json', "TEXT NOT NULL DEFAULT '[]'");
+  await addColumnIfMissing('settings', 'seo_schema_type', "TEXT NOT NULL DEFAULT 'Article'");
+  await addColumnIfMissing('settings', 'seo_schema_name', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_schema_description', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_schema_image_url', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_schema_url', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_schema_author', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_schema_date_published', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_schema_headline', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_google_2026_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_google_2026_agency_name', "TEXT NOT NULL DEFAULT 'Tempocrea'");
+  await addColumnIfMissing('settings', 'seo_google_2026_rollout_window_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_google_2026_rollout_window', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_google_2026_technical_seo_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_google_2026_technical_seo', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_google_2026_core_web_vitals_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_google_2026_core_web_vitals', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_google_2026_content_quality_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_google_2026_content_quality', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_google_2026_security_maintenance_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_google_2026_security_maintenance', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_google_2026_local_authority_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_google_2026_local_authority', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_google_2026_user_experience_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_google_2026_user_experience', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_google_2026_competitive_advantage_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_google_2026_competitive_advantage', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_images_module_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_images_file_names_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_images_file_names', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_images_resize_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_images_resize', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_images_compression_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_images_compression', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_images_format_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_images_format', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_images_sitemap_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_images_sitemap', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_images_cdn_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_images_cdn', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_images_lazy_loading_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_images_lazy_loading', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_images_browser_cache_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_images_browser_cache', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_images_structured_data_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_images_structured_data', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_images_social_tags_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_images_social_tags', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_images_audit_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_images_audit', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_tech_files_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_sitemap_generator_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_sitemap_generator_notes', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_robots_txt_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'seo_robots_txt_content', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'seo_htaccess_enabled', 'INTEGER NOT NULL DEFAULT 0');
+  await addColumnIfMissing('settings', 'seo_htaccess_content', "TEXT NOT NULL DEFAULT ''");
 }
 
 async function seedProductsIfNeeded() {
@@ -439,6 +872,16 @@ async function seedPages() {
        updated_at = datetime('now', 'localtime')`,
     ['help', HELP_PAGE_TITLE, HELP_PAGE_CONTENT_HTML]
   );
+
+  await run(
+    `INSERT INTO pages (slug, title, content_html)
+     VALUES (?, ?, ?)
+     ON CONFLICT(slug) DO UPDATE SET
+       title = excluded.title,
+       content_html = excluded.content_html,
+       updated_at = datetime('now', 'localtime')`,
+    ['security', SECURITY_PAGE_TITLE, SECURITY_PAGE_CONTENT_HTML]
+  );
 }
 
 async function seedDefaultAdminUser() {
@@ -446,6 +889,329 @@ async function seedDefaultAdminUser() {
     `INSERT OR IGNORE INTO users (username, password, full_name, role, is_active)
      VALUES (?, ?, ?, ?, 1)`,
     [DEFAULT_ADMIN_USER.username, DEFAULT_ADMIN_USER.password, DEFAULT_ADMIN_USER.fullName, DEFAULT_ADMIN_USER.role]
+  );
+}
+
+async function seedSettings() {
+  await run(
+    `INSERT OR IGNORE INTO settings (
+      id,
+      store_name,
+      whatsapp_number,
+      seo_social_meta_enabled,
+      seo_html_meta_enabled,
+      seo_open_graph_enabled,
+      seo_twitter_cards_enabled,
+      seo_advanced_tags_enabled,
+      seo_schema_markup_enabled,
+      seo_html_default_title,
+      seo_html_default_description,
+      seo_html_default_keywords,
+      seo_html_author,
+      seo_html_robots_index_enabled,
+      seo_html_robots_follow_enabled,
+      seo_html_content_language,
+      seo_html_geo_region,
+      seo_html_geo_placename,
+      seo_html_geo_position,
+      seo_og_default_title,
+      seo_og_default_description,
+      seo_og_images_json,
+      seo_og_url,
+      seo_og_type,
+      seo_og_site_name,
+      seo_og_locale,
+      seo_twitter_card_type,
+      seo_twitter_title,
+      seo_twitter_description,
+      seo_twitter_image_url,
+      seo_twitter_site_handle,
+      seo_twitter_creator_handle,
+      seo_advanced_canonical_url,
+      seo_advanced_noarchive_enabled,
+      seo_advanced_nosnippet_enabled,
+      seo_advanced_noimageindex_enabled,
+      seo_advanced_max_snippet,
+      seo_advanced_max_image_preview,
+      seo_advanced_max_video_preview,
+      seo_advanced_unavailable_after,
+      seo_advanced_googlebot_rules,
+      seo_advanced_googlebot_news_rules,
+      seo_advanced_hreflang_json,
+      seo_schema_type,
+      seo_schema_name,
+      seo_schema_description,
+      seo_schema_image_url,
+      seo_schema_url,
+      seo_schema_author,
+      seo_schema_date_published,
+      seo_schema_headline
+     ) VALUES (1, ?, ?, 1, 1, 1, 1, 0, 1, '', '', '', '', 1, 1, 'es', '', '', '', '', '', '[]', '', 'website', '', '', 'summary_large_image', '', '', '', '', '', '', 0, 0, 0, '', 'large', '', '', '', '', '[]', 'Article', '', '', '', '', '', '', '')`,
+    [DEFAULT_STORE_NAME, DEFAULT_WHATSAPP_NUMBER]
+  );
+
+  await run(
+    `UPDATE settings
+     SET
+       seo_google_2026_enabled = CASE
+         WHEN seo_google_2026_enabled IS NULL THEN ?
+         ELSE seo_google_2026_enabled
+       END,
+       seo_google_2026_agency_name = CASE
+         WHEN trim(seo_google_2026_agency_name) = '' THEN ?
+         ELSE seo_google_2026_agency_name
+       END,
+       seo_google_2026_rollout_window_enabled = CASE
+         WHEN seo_google_2026_rollout_window_enabled IS NULL THEN ?
+         ELSE seo_google_2026_rollout_window_enabled
+       END,
+       seo_google_2026_rollout_window = CASE
+         WHEN trim(seo_google_2026_rollout_window) = '' THEN ?
+         ELSE seo_google_2026_rollout_window
+       END,
+       seo_google_2026_technical_seo_enabled = CASE
+         WHEN seo_google_2026_technical_seo_enabled IS NULL THEN ?
+         ELSE seo_google_2026_technical_seo_enabled
+       END,
+       seo_google_2026_technical_seo = CASE
+         WHEN trim(seo_google_2026_technical_seo) = '' THEN ?
+         ELSE seo_google_2026_technical_seo
+       END,
+       seo_google_2026_core_web_vitals_enabled = CASE
+         WHEN seo_google_2026_core_web_vitals_enabled IS NULL THEN ?
+         ELSE seo_google_2026_core_web_vitals_enabled
+       END,
+       seo_google_2026_core_web_vitals = CASE
+         WHEN trim(seo_google_2026_core_web_vitals) = '' THEN ?
+         ELSE seo_google_2026_core_web_vitals
+       END,
+       seo_google_2026_content_quality_enabled = CASE
+         WHEN seo_google_2026_content_quality_enabled IS NULL THEN ?
+         ELSE seo_google_2026_content_quality_enabled
+       END,
+       seo_google_2026_content_quality = CASE
+         WHEN trim(seo_google_2026_content_quality) = '' THEN ?
+         ELSE seo_google_2026_content_quality
+       END,
+       seo_google_2026_security_maintenance_enabled = CASE
+         WHEN seo_google_2026_security_maintenance_enabled IS NULL THEN ?
+         ELSE seo_google_2026_security_maintenance_enabled
+       END,
+       seo_google_2026_security_maintenance = CASE
+         WHEN trim(seo_google_2026_security_maintenance) = '' THEN ?
+         ELSE seo_google_2026_security_maintenance
+       END,
+       seo_google_2026_local_authority_enabled = CASE
+         WHEN seo_google_2026_local_authority_enabled IS NULL THEN ?
+         ELSE seo_google_2026_local_authority_enabled
+       END,
+       seo_google_2026_local_authority = CASE
+         WHEN trim(seo_google_2026_local_authority) = '' THEN ?
+         ELSE seo_google_2026_local_authority
+       END,
+       seo_google_2026_user_experience_enabled = CASE
+         WHEN seo_google_2026_user_experience_enabled IS NULL THEN ?
+         ELSE seo_google_2026_user_experience_enabled
+       END,
+       seo_google_2026_user_experience = CASE
+         WHEN trim(seo_google_2026_user_experience) = '' THEN ?
+         ELSE seo_google_2026_user_experience
+       END,
+       seo_google_2026_competitive_advantage_enabled = CASE
+         WHEN seo_google_2026_competitive_advantage_enabled IS NULL THEN ?
+         ELSE seo_google_2026_competitive_advantage_enabled
+       END,
+       seo_google_2026_competitive_advantage = CASE
+         WHEN trim(seo_google_2026_competitive_advantage) = '' THEN ?
+         ELSE seo_google_2026_competitive_advantage
+       END
+     WHERE id = 1`,
+    [
+      Number(GOOGLE_2026_DEFAULTS.moduleEnabled) ? 1 : 0,
+      normalizeGoogle2026Text(GOOGLE_2026_DEFAULTS.agencyName, 120),
+      Number(GOOGLE_2026_DEFAULTS.rolloutWindowEnabled) ? 1 : 0,
+      normalizeGoogle2026Text(GOOGLE_2026_DEFAULTS.rolloutWindow, 800),
+      Number(GOOGLE_2026_DEFAULTS.technicalSeoEnabled) ? 1 : 0,
+      normalizeGoogle2026Text(GOOGLE_2026_DEFAULTS.technicalSeo, 4000),
+      Number(GOOGLE_2026_DEFAULTS.coreWebVitalsEnabled) ? 1 : 0,
+      normalizeGoogle2026Text(GOOGLE_2026_DEFAULTS.coreWebVitals, 4000),
+      Number(GOOGLE_2026_DEFAULTS.contentQualityEnabled) ? 1 : 0,
+      normalizeGoogle2026Text(GOOGLE_2026_DEFAULTS.contentQuality, 4000),
+      Number(GOOGLE_2026_DEFAULTS.securityMaintenanceEnabled) ? 1 : 0,
+      normalizeGoogle2026Text(GOOGLE_2026_DEFAULTS.securityMaintenance, 4000),
+      Number(GOOGLE_2026_DEFAULTS.localAuthorityEnabled) ? 1 : 0,
+      normalizeGoogle2026Text(GOOGLE_2026_DEFAULTS.localAuthority, 4000),
+      Number(GOOGLE_2026_DEFAULTS.userExperienceEnabled) ? 1 : 0,
+      normalizeGoogle2026Text(GOOGLE_2026_DEFAULTS.userExperience, 4000),
+      Number(GOOGLE_2026_DEFAULTS.competitiveAdvantageEnabled) ? 1 : 0,
+      normalizeGoogle2026Text(GOOGLE_2026_DEFAULTS.competitiveAdvantage, 4000)
+    ]
+  );
+
+  await run(
+    `UPDATE settings
+     SET
+       seo_images_module_enabled = CASE
+         WHEN seo_images_module_enabled IS NULL THEN ?
+         ELSE seo_images_module_enabled
+       END,
+       seo_images_file_names_enabled = CASE
+         WHEN seo_images_file_names_enabled IS NULL THEN ?
+         ELSE seo_images_file_names_enabled
+       END,
+       seo_images_file_names = CASE
+         WHEN trim(seo_images_file_names) = '' THEN ?
+         ELSE seo_images_file_names
+       END,
+       seo_images_resize_enabled = CASE
+         WHEN seo_images_resize_enabled IS NULL THEN ?
+         ELSE seo_images_resize_enabled
+       END,
+       seo_images_resize = CASE
+         WHEN trim(seo_images_resize) = '' THEN ?
+         ELSE seo_images_resize
+       END,
+       seo_images_compression_enabled = CASE
+         WHEN seo_images_compression_enabled IS NULL THEN ?
+         ELSE seo_images_compression_enabled
+       END,
+       seo_images_compression = CASE
+         WHEN trim(seo_images_compression) = '' THEN ?
+         ELSE seo_images_compression
+       END,
+       seo_images_format_enabled = CASE
+         WHEN seo_images_format_enabled IS NULL THEN ?
+         ELSE seo_images_format_enabled
+       END,
+       seo_images_format = CASE
+         WHEN trim(seo_images_format) = '' THEN ?
+         ELSE seo_images_format
+       END,
+       seo_images_sitemap_enabled = CASE
+         WHEN seo_images_sitemap_enabled IS NULL THEN ?
+         ELSE seo_images_sitemap_enabled
+       END,
+       seo_images_sitemap = CASE
+         WHEN trim(seo_images_sitemap) = '' THEN ?
+         ELSE seo_images_sitemap
+       END,
+       seo_images_cdn_enabled = CASE
+         WHEN seo_images_cdn_enabled IS NULL THEN ?
+         ELSE seo_images_cdn_enabled
+       END,
+       seo_images_cdn = CASE
+         WHEN trim(seo_images_cdn) = '' THEN ?
+         ELSE seo_images_cdn
+       END,
+       seo_images_lazy_loading_enabled = CASE
+         WHEN seo_images_lazy_loading_enabled IS NULL THEN ?
+         ELSE seo_images_lazy_loading_enabled
+       END,
+       seo_images_lazy_loading = CASE
+         WHEN trim(seo_images_lazy_loading) = '' THEN ?
+         ELSE seo_images_lazy_loading
+       END,
+       seo_images_browser_cache_enabled = CASE
+         WHEN seo_images_browser_cache_enabled IS NULL THEN ?
+         ELSE seo_images_browser_cache_enabled
+       END,
+       seo_images_browser_cache = CASE
+         WHEN trim(seo_images_browser_cache) = '' THEN ?
+         ELSE seo_images_browser_cache
+       END,
+       seo_images_structured_data_enabled = CASE
+         WHEN seo_images_structured_data_enabled IS NULL THEN ?
+         ELSE seo_images_structured_data_enabled
+       END,
+       seo_images_structured_data = CASE
+         WHEN trim(seo_images_structured_data) = '' THEN ?
+         ELSE seo_images_structured_data
+       END,
+       seo_images_social_tags_enabled = CASE
+         WHEN seo_images_social_tags_enabled IS NULL THEN ?
+         ELSE seo_images_social_tags_enabled
+       END,
+       seo_images_social_tags = CASE
+         WHEN trim(seo_images_social_tags) = '' THEN ?
+         ELSE seo_images_social_tags
+       END,
+       seo_images_audit_enabled = CASE
+         WHEN seo_images_audit_enabled IS NULL THEN ?
+         ELSE seo_images_audit_enabled
+       END,
+       seo_images_audit = CASE
+         WHEN trim(seo_images_audit) = '' THEN ?
+         ELSE seo_images_audit
+       END
+     WHERE id = 1`,
+    [
+      Number(SEO_IMAGES_DEFAULTS.moduleEnabled) ? 1 : 0,
+      Number(SEO_IMAGES_DEFAULTS.fileNamesEnabled) ? 1 : 0,
+      normalizeSeoImagesText(SEO_IMAGES_DEFAULTS.fileNames, 4000),
+      Number(SEO_IMAGES_DEFAULTS.resizeEnabled) ? 1 : 0,
+      normalizeSeoImagesText(SEO_IMAGES_DEFAULTS.resize, 4000),
+      Number(SEO_IMAGES_DEFAULTS.compressionEnabled) ? 1 : 0,
+      normalizeSeoImagesText(SEO_IMAGES_DEFAULTS.compression, 4000),
+      Number(SEO_IMAGES_DEFAULTS.formatEnabled) ? 1 : 0,
+      normalizeSeoImagesText(SEO_IMAGES_DEFAULTS.format, 4000),
+      Number(SEO_IMAGES_DEFAULTS.sitemapEnabled) ? 1 : 0,
+      normalizeSeoImagesText(SEO_IMAGES_DEFAULTS.sitemap, 4000),
+      Number(SEO_IMAGES_DEFAULTS.cdnEnabled) ? 1 : 0,
+      normalizeSeoImagesText(SEO_IMAGES_DEFAULTS.cdn, 4000),
+      Number(SEO_IMAGES_DEFAULTS.lazyLoadingEnabled) ? 1 : 0,
+      normalizeSeoImagesText(SEO_IMAGES_DEFAULTS.lazyLoading, 4000),
+      Number(SEO_IMAGES_DEFAULTS.browserCacheEnabled) ? 1 : 0,
+      normalizeSeoImagesText(SEO_IMAGES_DEFAULTS.browserCache, 4000),
+      Number(SEO_IMAGES_DEFAULTS.structuredDataEnabled) ? 1 : 0,
+      normalizeSeoImagesText(SEO_IMAGES_DEFAULTS.structuredData, 4000),
+      Number(SEO_IMAGES_DEFAULTS.socialTagsEnabled) ? 1 : 0,
+      normalizeSeoImagesText(SEO_IMAGES_DEFAULTS.socialTags, 4000),
+      Number(SEO_IMAGES_DEFAULTS.auditEnabled) ? 1 : 0,
+      normalizeSeoImagesText(SEO_IMAGES_DEFAULTS.audit, 4000)
+    ]
+  );
+
+  await run(
+    `UPDATE settings
+     SET
+       seo_tech_files_enabled = CASE
+         WHEN seo_tech_files_enabled IS NULL THEN ?
+         ELSE seo_tech_files_enabled
+       END,
+       seo_sitemap_generator_enabled = CASE
+         WHEN seo_sitemap_generator_enabled IS NULL THEN ?
+         ELSE seo_sitemap_generator_enabled
+       END,
+       seo_sitemap_generator_notes = CASE
+         WHEN trim(seo_sitemap_generator_notes) = '' THEN ?
+         ELSE seo_sitemap_generator_notes
+       END,
+       seo_robots_txt_enabled = CASE
+         WHEN seo_robots_txt_enabled IS NULL THEN ?
+         ELSE seo_robots_txt_enabled
+       END,
+       seo_robots_txt_content = CASE
+         WHEN trim(seo_robots_txt_content) = '' THEN ?
+         ELSE seo_robots_txt_content
+       END,
+       seo_htaccess_enabled = CASE
+         WHEN seo_htaccess_enabled IS NULL THEN ?
+         ELSE seo_htaccess_enabled
+       END,
+       seo_htaccess_content = CASE
+         WHEN trim(seo_htaccess_content) = '' THEN ?
+         ELSE seo_htaccess_content
+       END
+     WHERE id = 1`,
+    [
+      Number(SEO_TECH_FILES_DEFAULTS.moduleEnabled) ? 1 : 0,
+      Number(SEO_TECH_FILES_DEFAULTS.sitemapGeneratorEnabled) ? 1 : 0,
+      normalizeSeoTechFileText(SEO_TECH_FILES_DEFAULTS.sitemapGeneratorNotes, 4000),
+      Number(SEO_TECH_FILES_DEFAULTS.robotsTxtEnabled) ? 1 : 0,
+      normalizeSeoTechFileText(SEO_TECH_FILES_DEFAULTS.robotsTxtContent, 12000),
+      Number(SEO_TECH_FILES_DEFAULTS.htaccessEnabled) ? 1 : 0,
+      normalizeSeoTechFileText(SEO_TECH_FILES_DEFAULTS.htaccessContent, 16000)
+    ]
   );
 }
 
@@ -531,6 +1297,109 @@ async function initDb() {
     created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
   )`);
 
+  await run(`CREATE TABLE IF NOT EXISTS settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    store_name TEXT NOT NULL,
+    whatsapp_number TEXT NOT NULL,
+    seo_social_meta_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_html_meta_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_open_graph_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_twitter_cards_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_advanced_tags_enabled INTEGER NOT NULL DEFAULT 0,
+    seo_schema_markup_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_html_default_title TEXT NOT NULL DEFAULT '',
+    seo_html_default_description TEXT NOT NULL DEFAULT '',
+    seo_html_default_keywords TEXT NOT NULL DEFAULT '',
+    seo_html_author TEXT NOT NULL DEFAULT '',
+    seo_html_robots_index_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_html_robots_follow_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_html_content_language TEXT NOT NULL DEFAULT 'es',
+    seo_html_geo_region TEXT NOT NULL DEFAULT '',
+    seo_html_geo_placename TEXT NOT NULL DEFAULT '',
+    seo_html_geo_position TEXT NOT NULL DEFAULT '',
+    seo_og_default_title TEXT NOT NULL DEFAULT '',
+    seo_og_default_description TEXT NOT NULL DEFAULT '',
+    seo_og_images_json TEXT NOT NULL DEFAULT '[]',
+    seo_og_url TEXT NOT NULL DEFAULT '',
+    seo_og_type TEXT NOT NULL DEFAULT 'website',
+    seo_og_site_name TEXT NOT NULL DEFAULT '',
+    seo_og_locale TEXT NOT NULL DEFAULT '',
+    seo_twitter_card_type TEXT NOT NULL DEFAULT 'summary_large_image',
+    seo_twitter_title TEXT NOT NULL DEFAULT '',
+    seo_twitter_description TEXT NOT NULL DEFAULT '',
+    seo_twitter_image_url TEXT NOT NULL DEFAULT '',
+    seo_twitter_site_handle TEXT NOT NULL DEFAULT '',
+    seo_twitter_creator_handle TEXT NOT NULL DEFAULT '',
+    seo_advanced_canonical_url TEXT NOT NULL DEFAULT '',
+    seo_advanced_noarchive_enabled INTEGER NOT NULL DEFAULT 0,
+    seo_advanced_nosnippet_enabled INTEGER NOT NULL DEFAULT 0,
+    seo_advanced_noimageindex_enabled INTEGER NOT NULL DEFAULT 0,
+    seo_advanced_max_snippet TEXT NOT NULL DEFAULT '',
+    seo_advanced_max_image_preview TEXT NOT NULL DEFAULT 'large',
+    seo_advanced_max_video_preview TEXT NOT NULL DEFAULT '',
+    seo_advanced_unavailable_after TEXT NOT NULL DEFAULT '',
+    seo_advanced_googlebot_rules TEXT NOT NULL DEFAULT '',
+    seo_advanced_googlebot_news_rules TEXT NOT NULL DEFAULT '',
+    seo_advanced_hreflang_json TEXT NOT NULL DEFAULT '[]',
+    seo_schema_type TEXT NOT NULL DEFAULT 'Article',
+    seo_schema_name TEXT NOT NULL DEFAULT '',
+    seo_schema_description TEXT NOT NULL DEFAULT '',
+    seo_schema_image_url TEXT NOT NULL DEFAULT '',
+    seo_schema_url TEXT NOT NULL DEFAULT '',
+    seo_schema_author TEXT NOT NULL DEFAULT '',
+    seo_schema_date_published TEXT NOT NULL DEFAULT '',
+    seo_schema_headline TEXT NOT NULL DEFAULT '',
+    seo_google_2026_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_google_2026_agency_name TEXT NOT NULL DEFAULT 'Tempocrea',
+    seo_google_2026_rollout_window_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_google_2026_rollout_window TEXT NOT NULL DEFAULT '',
+    seo_google_2026_technical_seo_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_google_2026_technical_seo TEXT NOT NULL DEFAULT '',
+    seo_google_2026_core_web_vitals_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_google_2026_core_web_vitals TEXT NOT NULL DEFAULT '',
+    seo_google_2026_content_quality_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_google_2026_content_quality TEXT NOT NULL DEFAULT '',
+    seo_google_2026_security_maintenance_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_google_2026_security_maintenance TEXT NOT NULL DEFAULT '',
+    seo_google_2026_local_authority_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_google_2026_local_authority TEXT NOT NULL DEFAULT '',
+    seo_google_2026_user_experience_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_google_2026_user_experience TEXT NOT NULL DEFAULT '',
+    seo_google_2026_competitive_advantage_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_google_2026_competitive_advantage TEXT NOT NULL DEFAULT '',
+    seo_images_module_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_images_file_names_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_images_file_names TEXT NOT NULL DEFAULT '',
+    seo_images_resize_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_images_resize TEXT NOT NULL DEFAULT '',
+    seo_images_compression_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_images_compression TEXT NOT NULL DEFAULT '',
+    seo_images_format_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_images_format TEXT NOT NULL DEFAULT '',
+    seo_images_sitemap_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_images_sitemap TEXT NOT NULL DEFAULT '',
+    seo_images_cdn_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_images_cdn TEXT NOT NULL DEFAULT '',
+    seo_images_lazy_loading_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_images_lazy_loading TEXT NOT NULL DEFAULT '',
+    seo_images_browser_cache_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_images_browser_cache TEXT NOT NULL DEFAULT '',
+    seo_images_structured_data_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_images_structured_data TEXT NOT NULL DEFAULT '',
+    seo_images_social_tags_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_images_social_tags TEXT NOT NULL DEFAULT '',
+    seo_images_audit_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_images_audit TEXT NOT NULL DEFAULT '',
+    seo_tech_files_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_sitemap_generator_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_sitemap_generator_notes TEXT NOT NULL DEFAULT '',
+    seo_robots_txt_enabled INTEGER NOT NULL DEFAULT 1,
+    seo_robots_txt_content TEXT NOT NULL DEFAULT '',
+    seo_htaccess_enabled INTEGER NOT NULL DEFAULT 0,
+    seo_htaccess_content TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+  )`);
+
   await run(`CREATE TABLE IF NOT EXISTS orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     customer_name TEXT NOT NULL,
@@ -559,6 +1428,7 @@ async function initDb() {
   await seedDefaultCategories();
   await seedPages();
   await seedDefaultAdminUser();
+  await seedSettings();
   await seedProductsIfNeeded();
   await backfillProductAttributesIfNeeded();
   await ensureCategoriesAndImagesFromProducts();
@@ -583,22 +1453,32 @@ async function authenticateUser(username, password) {
 async function getPageBySlug(slug) {
   const normalizedSlug = normalizeText(slug, 80).toLowerCase();
   if (!normalizedSlug) return null;
+  const normalizedLookupSlug = normalizedSlug === 'seguridad' ? 'security' : normalizedSlug;
 
   const row = await get(
     `SELECT slug, title, content_html as contentHtml, updated_at as updatedAt
      FROM pages
      WHERE slug = ?`,
-    [normalizedSlug]
+    [normalizedLookupSlug]
   );
 
   if (row) return row;
 
   // Fallback so `/api/pages/help` never fails even if seed wasn't run yet.
-  if (normalizedSlug === 'help') {
+  if (normalizedLookupSlug === 'help') {
     return {
       slug: 'help',
       title: HELP_PAGE_TITLE,
       contentHtml: HELP_PAGE_CONTENT_HTML,
+      updatedAt: null
+    };
+  }
+
+  if (normalizedLookupSlug === 'security') {
+    return {
+      slug: 'security',
+      title: SECURITY_PAGE_TITLE,
+      contentHtml: SECURITY_PAGE_CONTENT_HTML,
       updatedAt: null
     };
   }
@@ -813,6 +1693,906 @@ async function createOrder({ customer, items, whatsappNumber }) {
     await run('ROLLBACK');
     throw error;
   }
+}
+
+async function getSettings() {
+  const row = await get(
+    `SELECT
+      id,
+      store_name as storeName,
+      whatsapp_number as whatsappNumber,
+      seo_social_meta_enabled as seoSocialMetaEnabled,
+      seo_html_meta_enabled as seoHtmlMetaEnabled,
+      seo_open_graph_enabled as seoOpenGraphEnabled,
+      seo_twitter_cards_enabled as seoTwitterCardsEnabled,
+      seo_advanced_tags_enabled as seoAdvancedTagsEnabled,
+      seo_schema_markup_enabled as seoSchemaMarkupEnabled,
+      seo_html_default_title as seoHtmlDefaultTitle,
+      seo_html_default_description as seoHtmlDefaultDescription,
+      seo_html_default_keywords as seoHtmlDefaultKeywords,
+      seo_html_author as seoHtmlAuthor,
+      seo_html_robots_index_enabled as seoHtmlRobotsIndexEnabled,
+      seo_html_robots_follow_enabled as seoHtmlRobotsFollowEnabled,
+      seo_html_content_language as seoHtmlContentLanguage,
+      seo_html_geo_region as seoHtmlGeoRegion,
+      seo_html_geo_placename as seoHtmlGeoPlaceName,
+      seo_html_geo_position as seoHtmlGeoPosition,
+      seo_og_default_title as seoOgDefaultTitle,
+      seo_og_default_description as seoOgDefaultDescription,
+      seo_og_images_json as seoOgImagesJson,
+      seo_og_url as seoOgUrl,
+      seo_og_type as seoOgType,
+      seo_og_site_name as seoOgSiteName,
+      seo_og_locale as seoOgLocale,
+      seo_twitter_card_type as seoTwitterCardType,
+      seo_twitter_title as seoTwitterTitle,
+      seo_twitter_description as seoTwitterDescription,
+      seo_twitter_image_url as seoTwitterImageUrl,
+      seo_twitter_site_handle as seoTwitterSiteHandle,
+      seo_twitter_creator_handle as seoTwitterCreatorHandle,
+      seo_advanced_canonical_url as seoAdvancedCanonicalUrl,
+      seo_advanced_noarchive_enabled as seoAdvancedNoArchiveEnabled,
+      seo_advanced_nosnippet_enabled as seoAdvancedNoSnippetEnabled,
+      seo_advanced_noimageindex_enabled as seoAdvancedNoImageIndexEnabled,
+      seo_advanced_max_snippet as seoAdvancedMaxSnippet,
+      seo_advanced_max_image_preview as seoAdvancedMaxImagePreview,
+      seo_advanced_max_video_preview as seoAdvancedMaxVideoPreview,
+      seo_advanced_unavailable_after as seoAdvancedUnavailableAfter,
+      seo_advanced_googlebot_rules as seoAdvancedGooglebotRules,
+      seo_advanced_googlebot_news_rules as seoAdvancedGooglebotNewsRules,
+      seo_advanced_hreflang_json as seoAdvancedHreflangJson,
+      seo_schema_type as seoSchemaType,
+      seo_schema_name as seoSchemaName,
+      seo_schema_description as seoSchemaDescription,
+      seo_schema_image_url as seoSchemaImageUrl,
+      seo_schema_url as seoSchemaUrl,
+      seo_schema_author as seoSchemaAuthor,
+      seo_schema_date_published as seoSchemaDatePublished,
+      seo_schema_headline as seoSchemaHeadline,
+      seo_google_2026_enabled as seoGoogle2026Enabled,
+      seo_google_2026_agency_name as seoGoogle2026AgencyName,
+      seo_google_2026_rollout_window_enabled as seoGoogle2026RolloutWindowEnabled,
+      seo_google_2026_rollout_window as seoGoogle2026RolloutWindow,
+      seo_google_2026_technical_seo_enabled as seoGoogle2026TechnicalSeoEnabled,
+      seo_google_2026_technical_seo as seoGoogle2026TechnicalSeo,
+      seo_google_2026_core_web_vitals_enabled as seoGoogle2026CoreWebVitalsEnabled,
+      seo_google_2026_core_web_vitals as seoGoogle2026CoreWebVitals,
+      seo_google_2026_content_quality_enabled as seoGoogle2026ContentQualityEnabled,
+      seo_google_2026_content_quality as seoGoogle2026ContentQuality,
+      seo_google_2026_security_maintenance_enabled as seoGoogle2026SecurityMaintenanceEnabled,
+      seo_google_2026_security_maintenance as seoGoogle2026SecurityMaintenance,
+      seo_google_2026_local_authority_enabled as seoGoogle2026LocalAuthorityEnabled,
+      seo_google_2026_local_authority as seoGoogle2026LocalAuthority,
+      seo_google_2026_user_experience_enabled as seoGoogle2026UserExperienceEnabled,
+      seo_google_2026_user_experience as seoGoogle2026UserExperience,
+      seo_google_2026_competitive_advantage_enabled as seoGoogle2026CompetitiveAdvantageEnabled,
+      seo_google_2026_competitive_advantage as seoGoogle2026CompetitiveAdvantage,
+      seo_images_module_enabled as seoImagesModuleEnabled,
+      seo_images_file_names_enabled as seoImagesFileNamesEnabled,
+      seo_images_file_names as seoImagesFileNames,
+      seo_images_resize_enabled as seoImagesResizeEnabled,
+      seo_images_resize as seoImagesResize,
+      seo_images_compression_enabled as seoImagesCompressionEnabled,
+      seo_images_compression as seoImagesCompression,
+      seo_images_format_enabled as seoImagesFormatEnabled,
+      seo_images_format as seoImagesFormat,
+      seo_images_sitemap_enabled as seoImagesSitemapEnabled,
+      seo_images_sitemap as seoImagesSitemap,
+      seo_images_cdn_enabled as seoImagesCdnEnabled,
+      seo_images_cdn as seoImagesCdn,
+      seo_images_lazy_loading_enabled as seoImagesLazyLoadingEnabled,
+      seo_images_lazy_loading as seoImagesLazyLoading,
+      seo_images_browser_cache_enabled as seoImagesBrowserCacheEnabled,
+      seo_images_browser_cache as seoImagesBrowserCache,
+      seo_images_structured_data_enabled as seoImagesStructuredDataEnabled,
+      seo_images_structured_data as seoImagesStructuredData,
+      seo_images_social_tags_enabled as seoImagesSocialTagsEnabled,
+      seo_images_social_tags as seoImagesSocialTags,
+      seo_images_audit_enabled as seoImagesAuditEnabled,
+      seo_images_audit as seoImagesAudit,
+      seo_tech_files_enabled as seoTechFilesEnabled,
+      seo_sitemap_generator_enabled as seoSitemapGeneratorEnabled,
+      seo_sitemap_generator_notes as seoSitemapGeneratorNotes,
+      seo_robots_txt_enabled as seoRobotsTxtEnabled,
+      seo_robots_txt_content as seoRobotsTxtContent,
+      seo_htaccess_enabled as seoHtaccessEnabled,
+      seo_htaccess_content as seoHtaccessContent,
+      updated_at as updatedAt
+     FROM settings
+     WHERE id = 1`
+  );
+
+  if (row) return row;
+
+  await seedSettings();
+  return get(
+    `SELECT
+      id,
+      store_name as storeName,
+      whatsapp_number as whatsappNumber,
+      seo_social_meta_enabled as seoSocialMetaEnabled,
+      seo_html_meta_enabled as seoHtmlMetaEnabled,
+      seo_open_graph_enabled as seoOpenGraphEnabled,
+      seo_twitter_cards_enabled as seoTwitterCardsEnabled,
+      seo_advanced_tags_enabled as seoAdvancedTagsEnabled,
+      seo_schema_markup_enabled as seoSchemaMarkupEnabled,
+      seo_html_default_title as seoHtmlDefaultTitle,
+      seo_html_default_description as seoHtmlDefaultDescription,
+      seo_html_default_keywords as seoHtmlDefaultKeywords,
+      seo_html_author as seoHtmlAuthor,
+      seo_html_robots_index_enabled as seoHtmlRobotsIndexEnabled,
+      seo_html_robots_follow_enabled as seoHtmlRobotsFollowEnabled,
+      seo_html_content_language as seoHtmlContentLanguage,
+      seo_html_geo_region as seoHtmlGeoRegion,
+      seo_html_geo_placename as seoHtmlGeoPlaceName,
+      seo_html_geo_position as seoHtmlGeoPosition,
+      seo_og_default_title as seoOgDefaultTitle,
+      seo_og_default_description as seoOgDefaultDescription,
+      seo_og_images_json as seoOgImagesJson,
+      seo_og_url as seoOgUrl,
+      seo_og_type as seoOgType,
+      seo_og_site_name as seoOgSiteName,
+      seo_og_locale as seoOgLocale,
+      seo_twitter_card_type as seoTwitterCardType,
+      seo_twitter_title as seoTwitterTitle,
+      seo_twitter_description as seoTwitterDescription,
+      seo_twitter_image_url as seoTwitterImageUrl,
+      seo_twitter_site_handle as seoTwitterSiteHandle,
+      seo_twitter_creator_handle as seoTwitterCreatorHandle,
+      seo_advanced_canonical_url as seoAdvancedCanonicalUrl,
+      seo_advanced_noarchive_enabled as seoAdvancedNoArchiveEnabled,
+      seo_advanced_nosnippet_enabled as seoAdvancedNoSnippetEnabled,
+      seo_advanced_noimageindex_enabled as seoAdvancedNoImageIndexEnabled,
+      seo_advanced_max_snippet as seoAdvancedMaxSnippet,
+      seo_advanced_max_image_preview as seoAdvancedMaxImagePreview,
+      seo_advanced_max_video_preview as seoAdvancedMaxVideoPreview,
+      seo_advanced_unavailable_after as seoAdvancedUnavailableAfter,
+      seo_advanced_googlebot_rules as seoAdvancedGooglebotRules,
+      seo_advanced_googlebot_news_rules as seoAdvancedGooglebotNewsRules,
+      seo_advanced_hreflang_json as seoAdvancedHreflangJson,
+      seo_schema_type as seoSchemaType,
+      seo_schema_name as seoSchemaName,
+      seo_schema_description as seoSchemaDescription,
+      seo_schema_image_url as seoSchemaImageUrl,
+      seo_schema_url as seoSchemaUrl,
+      seo_schema_author as seoSchemaAuthor,
+      seo_schema_date_published as seoSchemaDatePublished,
+      seo_schema_headline as seoSchemaHeadline,
+      seo_google_2026_enabled as seoGoogle2026Enabled,
+      seo_google_2026_agency_name as seoGoogle2026AgencyName,
+      seo_google_2026_rollout_window_enabled as seoGoogle2026RolloutWindowEnabled,
+      seo_google_2026_rollout_window as seoGoogle2026RolloutWindow,
+      seo_google_2026_technical_seo_enabled as seoGoogle2026TechnicalSeoEnabled,
+      seo_google_2026_technical_seo as seoGoogle2026TechnicalSeo,
+      seo_google_2026_core_web_vitals_enabled as seoGoogle2026CoreWebVitalsEnabled,
+      seo_google_2026_core_web_vitals as seoGoogle2026CoreWebVitals,
+      seo_google_2026_content_quality_enabled as seoGoogle2026ContentQualityEnabled,
+      seo_google_2026_content_quality as seoGoogle2026ContentQuality,
+      seo_google_2026_security_maintenance_enabled as seoGoogle2026SecurityMaintenanceEnabled,
+      seo_google_2026_security_maintenance as seoGoogle2026SecurityMaintenance,
+      seo_google_2026_local_authority_enabled as seoGoogle2026LocalAuthorityEnabled,
+      seo_google_2026_local_authority as seoGoogle2026LocalAuthority,
+      seo_google_2026_user_experience_enabled as seoGoogle2026UserExperienceEnabled,
+      seo_google_2026_user_experience as seoGoogle2026UserExperience,
+      seo_google_2026_competitive_advantage_enabled as seoGoogle2026CompetitiveAdvantageEnabled,
+      seo_google_2026_competitive_advantage as seoGoogle2026CompetitiveAdvantage,
+      seo_images_module_enabled as seoImagesModuleEnabled,
+      seo_images_file_names_enabled as seoImagesFileNamesEnabled,
+      seo_images_file_names as seoImagesFileNames,
+      seo_images_resize_enabled as seoImagesResizeEnabled,
+      seo_images_resize as seoImagesResize,
+      seo_images_compression_enabled as seoImagesCompressionEnabled,
+      seo_images_compression as seoImagesCompression,
+      seo_images_format_enabled as seoImagesFormatEnabled,
+      seo_images_format as seoImagesFormat,
+      seo_images_sitemap_enabled as seoImagesSitemapEnabled,
+      seo_images_sitemap as seoImagesSitemap,
+      seo_images_cdn_enabled as seoImagesCdnEnabled,
+      seo_images_cdn as seoImagesCdn,
+      seo_images_lazy_loading_enabled as seoImagesLazyLoadingEnabled,
+      seo_images_lazy_loading as seoImagesLazyLoading,
+      seo_images_browser_cache_enabled as seoImagesBrowserCacheEnabled,
+      seo_images_browser_cache as seoImagesBrowserCache,
+      seo_images_structured_data_enabled as seoImagesStructuredDataEnabled,
+      seo_images_structured_data as seoImagesStructuredData,
+      seo_images_social_tags_enabled as seoImagesSocialTagsEnabled,
+      seo_images_social_tags as seoImagesSocialTags,
+      seo_images_audit_enabled as seoImagesAuditEnabled,
+      seo_images_audit as seoImagesAudit,
+      seo_tech_files_enabled as seoTechFilesEnabled,
+      seo_sitemap_generator_enabled as seoSitemapGeneratorEnabled,
+      seo_sitemap_generator_notes as seoSitemapGeneratorNotes,
+      seo_robots_txt_enabled as seoRobotsTxtEnabled,
+      seo_robots_txt_content as seoRobotsTxtContent,
+      seo_htaccess_enabled as seoHtaccessEnabled,
+      seo_htaccess_content as seoHtaccessContent,
+      updated_at as updatedAt
+     FROM settings
+     WHERE id = 1`
+  );
+}
+
+async function listSettings() {
+  const settings = await getSettings();
+  return settings ? [settings] : [];
+}
+
+async function updateSettings({
+  storeName,
+  whatsappNumber,
+  seoSocialMetaEnabled,
+  seoHtmlMetaEnabled,
+  seoOpenGraphEnabled,
+  seoTwitterCardsEnabled,
+  seoAdvancedTagsEnabled,
+  seoSchemaMarkupEnabled,
+  seoHtmlDefaultTitle,
+  seoHtmlDefaultDescription,
+  seoHtmlDefaultKeywords,
+  seoHtmlAuthor,
+  seoHtmlRobotsIndexEnabled,
+  seoHtmlRobotsFollowEnabled,
+  seoHtmlContentLanguage,
+  seoHtmlGeoRegion,
+  seoHtmlGeoPlaceName,
+  seoHtmlGeoPosition,
+  seoOgDefaultTitle,
+  seoOgDefaultDescription,
+  seoOgImagesJson,
+  seoOgUrl,
+  seoOgType,
+  seoOgSiteName,
+  seoOgLocale,
+  seoTwitterCardType,
+  seoTwitterTitle,
+  seoTwitterDescription,
+  seoTwitterImageUrl,
+  seoTwitterSiteHandle,
+  seoTwitterCreatorHandle,
+  seoAdvancedCanonicalUrl,
+  seoAdvancedNoArchiveEnabled,
+  seoAdvancedNoSnippetEnabled,
+  seoAdvancedNoImageIndexEnabled,
+  seoAdvancedMaxSnippet,
+  seoAdvancedMaxImagePreview,
+  seoAdvancedMaxVideoPreview,
+  seoAdvancedUnavailableAfter,
+  seoAdvancedGooglebotRules,
+  seoAdvancedGooglebotNewsRules,
+  seoAdvancedHreflangJson,
+  seoSchemaType,
+  seoSchemaName,
+  seoSchemaDescription,
+  seoSchemaImageUrl,
+  seoSchemaUrl,
+  seoSchemaAuthor,
+  seoSchemaDatePublished,
+  seoSchemaHeadline,
+  seoGoogle2026Enabled,
+  seoGoogle2026AgencyName,
+  seoGoogle2026RolloutWindowEnabled,
+  seoGoogle2026RolloutWindow,
+  seoGoogle2026TechnicalSeoEnabled,
+  seoGoogle2026TechnicalSeo,
+  seoGoogle2026CoreWebVitalsEnabled,
+  seoGoogle2026CoreWebVitals,
+  seoGoogle2026ContentQualityEnabled,
+  seoGoogle2026ContentQuality,
+  seoGoogle2026SecurityMaintenanceEnabled,
+  seoGoogle2026SecurityMaintenance,
+  seoGoogle2026LocalAuthorityEnabled,
+  seoGoogle2026LocalAuthority,
+  seoGoogle2026UserExperienceEnabled,
+  seoGoogle2026UserExperience,
+  seoGoogle2026CompetitiveAdvantageEnabled,
+  seoGoogle2026CompetitiveAdvantage,
+  seoImagesModuleEnabled,
+  seoImagesFileNamesEnabled,
+  seoImagesFileNames,
+  seoImagesResizeEnabled,
+  seoImagesResize,
+  seoImagesCompressionEnabled,
+  seoImagesCompression,
+  seoImagesFormatEnabled,
+  seoImagesFormat,
+  seoImagesSitemapEnabled,
+  seoImagesSitemap,
+  seoImagesCdnEnabled,
+  seoImagesCdn,
+  seoImagesLazyLoadingEnabled,
+  seoImagesLazyLoading,
+  seoImagesBrowserCacheEnabled,
+  seoImagesBrowserCache,
+  seoImagesStructuredDataEnabled,
+  seoImagesStructuredData,
+  seoImagesSocialTagsEnabled,
+  seoImagesSocialTags,
+  seoImagesAuditEnabled,
+  seoImagesAudit,
+  seoTechFilesEnabled,
+  seoSitemapGeneratorEnabled,
+  seoSitemapGeneratorNotes,
+  seoRobotsTxtEnabled,
+  seoRobotsTxtContent,
+  seoHtaccessEnabled,
+  seoHtaccessContent
+}) {
+  const current = await getSettings();
+  if (!current) {
+    throw new Error('No se pudo cargar configuración.');
+  }
+
+  const nextStoreName = normalizeText(storeName ?? current.storeName, 120);
+  const nextWhatsappNumber = normalizeWhatsappNumber(whatsappNumber ?? current.whatsappNumber);
+  let nextSeoSocialMetaEnabled =
+    seoSocialMetaEnabled === undefined ? Number(current.seoSocialMetaEnabled) : Number(seoSocialMetaEnabled) ? 1 : 0;
+  const nextSeoHtmlMetaEnabled =
+    seoHtmlMetaEnabled === undefined ? Number(current.seoHtmlMetaEnabled) : Number(seoHtmlMetaEnabled) ? 1 : 0;
+  const nextSeoOpenGraphEnabled =
+    seoOpenGraphEnabled === undefined ? Number(current.seoOpenGraphEnabled) : Number(seoOpenGraphEnabled) ? 1 : 0;
+  const nextSeoTwitterCardsEnabled =
+    seoTwitterCardsEnabled === undefined
+      ? Number(current.seoTwitterCardsEnabled)
+      : Number(seoTwitterCardsEnabled)
+        ? 1
+        : 0;
+  const nextSeoAdvancedTagsEnabled =
+    seoAdvancedTagsEnabled === undefined ? Number(current.seoAdvancedTagsEnabled) : Number(seoAdvancedTagsEnabled) ? 1 : 0;
+  const nextSeoSchemaMarkupEnabled =
+    seoSchemaMarkupEnabled === undefined ? Number(current.seoSchemaMarkupEnabled) : Number(seoSchemaMarkupEnabled) ? 1 : 0;
+  const nextSeoHtmlDefaultTitle = normalizeText(seoHtmlDefaultTitle ?? current.seoHtmlDefaultTitle, 160);
+  const nextSeoHtmlDefaultDescription = normalizeText(seoHtmlDefaultDescription ?? current.seoHtmlDefaultDescription, 320);
+  const nextSeoHtmlDefaultKeywords = normalizeText(seoHtmlDefaultKeywords ?? current.seoHtmlDefaultKeywords, 320);
+  const nextSeoHtmlAuthor = normalizeText(seoHtmlAuthor ?? current.seoHtmlAuthor, 120);
+  const nextSeoHtmlRobotsIndexEnabled =
+    seoHtmlRobotsIndexEnabled === undefined
+      ? Number(current.seoHtmlRobotsIndexEnabled)
+      : Number(seoHtmlRobotsIndexEnabled)
+        ? 1
+        : 0;
+  const nextSeoHtmlRobotsFollowEnabled =
+    seoHtmlRobotsFollowEnabled === undefined
+      ? Number(current.seoHtmlRobotsFollowEnabled)
+      : Number(seoHtmlRobotsFollowEnabled)
+        ? 1
+        : 0;
+  const nextSeoHtmlContentLanguage = normalizeContentLanguage(seoHtmlContentLanguage ?? current.seoHtmlContentLanguage);
+  const nextSeoHtmlGeoRegion = normalizeGeoRegion(seoHtmlGeoRegion ?? current.seoHtmlGeoRegion);
+  const nextSeoHtmlGeoPlaceName = normalizeText(seoHtmlGeoPlaceName ?? current.seoHtmlGeoPlaceName, 120);
+  const nextSeoHtmlGeoPosition = normalizeGeoPosition(seoHtmlGeoPosition ?? current.seoHtmlGeoPosition);
+  const nextSeoOgDefaultTitle = normalizeText(seoOgDefaultTitle ?? current.seoOgDefaultTitle, 160);
+  const nextSeoOgDefaultDescription = normalizeText(seoOgDefaultDescription ?? current.seoOgDefaultDescription, 320);
+  const nextSeoOgImagesJson = stringifyOgImages(seoOgImagesJson ?? current.seoOgImagesJson);
+  const nextSeoOgUrl = normalizeUrl(seoOgUrl ?? current.seoOgUrl, 1000);
+  const nextSeoOgType = normalizeOgType(seoOgType ?? current.seoOgType);
+  const nextSeoOgSiteName = normalizeText(seoOgSiteName ?? current.seoOgSiteName, 120);
+  const nextSeoOgLocale = normalizeOgLocale(seoOgLocale ?? current.seoOgLocale);
+  const nextSeoTwitterCardType = normalizeTwitterCardType(seoTwitterCardType ?? current.seoTwitterCardType);
+  const nextSeoTwitterTitle = normalizeText(seoTwitterTitle ?? current.seoTwitterTitle, 70);
+  const nextSeoTwitterDescription = normalizeText(seoTwitterDescription ?? current.seoTwitterDescription, 200);
+  const nextSeoTwitterImageUrl = normalizeUrl(seoTwitterImageUrl ?? current.seoTwitterImageUrl, 1000);
+  const nextSeoTwitterSiteHandle = normalizeTwitterHandle(seoTwitterSiteHandle ?? current.seoTwitterSiteHandle);
+  const nextSeoTwitterCreatorHandle = normalizeTwitterHandle(seoTwitterCreatorHandle ?? current.seoTwitterCreatorHandle);
+  const nextSeoAdvancedCanonicalUrl = normalizeUrl(seoAdvancedCanonicalUrl ?? current.seoAdvancedCanonicalUrl, 1000);
+  const nextSeoAdvancedNoArchiveEnabled =
+    seoAdvancedNoArchiveEnabled === undefined
+      ? Number(current.seoAdvancedNoArchiveEnabled)
+      : Number(seoAdvancedNoArchiveEnabled)
+        ? 1
+        : 0;
+  const nextSeoAdvancedNoSnippetEnabled =
+    seoAdvancedNoSnippetEnabled === undefined
+      ? Number(current.seoAdvancedNoSnippetEnabled)
+      : Number(seoAdvancedNoSnippetEnabled)
+        ? 1
+        : 0;
+  const nextSeoAdvancedNoImageIndexEnabled =
+    seoAdvancedNoImageIndexEnabled === undefined
+      ? Number(current.seoAdvancedNoImageIndexEnabled)
+      : Number(seoAdvancedNoImageIndexEnabled)
+        ? 1
+        : 0;
+  const nextSeoAdvancedMaxSnippet = normalizeDirectiveNumber(
+    seoAdvancedMaxSnippet ?? current.seoAdvancedMaxSnippet,
+    5000
+  );
+  const nextSeoAdvancedMaxImagePreview = normalizeAdvancedImagePreview(
+    seoAdvancedMaxImagePreview ?? current.seoAdvancedMaxImagePreview
+  );
+  const nextSeoAdvancedMaxVideoPreview = normalizeDirectiveNumber(
+    seoAdvancedMaxVideoPreview ?? current.seoAdvancedMaxVideoPreview,
+    86400
+  );
+  const nextSeoAdvancedUnavailableAfter = normalizeDirectiveText(
+    seoAdvancedUnavailableAfter ?? current.seoAdvancedUnavailableAfter,
+    80
+  );
+  const nextSeoAdvancedGooglebotRules = normalizeDirectiveText(
+    seoAdvancedGooglebotRules ?? current.seoAdvancedGooglebotRules,
+    240
+  );
+  const nextSeoAdvancedGooglebotNewsRules = normalizeDirectiveText(
+    seoAdvancedGooglebotNewsRules ?? current.seoAdvancedGooglebotNewsRules,
+    240
+  );
+  const nextSeoAdvancedHreflangJson = stringifyHreflangEntries(
+    seoAdvancedHreflangJson ?? current.seoAdvancedHreflangJson
+  );
+  const nextSeoSchemaType = normalizeSchemaType(seoSchemaType ?? current.seoSchemaType);
+  const nextSeoSchemaName = normalizeText(seoSchemaName ?? current.seoSchemaName, 160);
+  const nextSeoSchemaDescription = normalizeText(seoSchemaDescription ?? current.seoSchemaDescription, 320);
+  const nextSeoSchemaImageUrl = normalizeUrl(seoSchemaImageUrl ?? current.seoSchemaImageUrl, 1000);
+  const nextSeoSchemaUrl = normalizeUrl(seoSchemaUrl ?? current.seoSchemaUrl, 1000);
+  const nextSeoSchemaAuthor = normalizeText(seoSchemaAuthor ?? current.seoSchemaAuthor, 120);
+  const nextSeoSchemaDatePublished = normalizeDirectiveText(
+    seoSchemaDatePublished ?? current.seoSchemaDatePublished,
+    64
+  );
+  const nextSeoSchemaHeadline = normalizeText(seoSchemaHeadline ?? current.seoSchemaHeadline, 160);
+  const nextSeoGoogle2026Enabled =
+    seoGoogle2026Enabled === undefined
+      ? Number(current.seoGoogle2026Enabled ?? GOOGLE_2026_DEFAULTS.moduleEnabled)
+      : Number(seoGoogle2026Enabled)
+        ? 1
+        : 0;
+  const nextSeoGoogle2026AgencyName = normalizeGoogle2026Text(
+    seoGoogle2026AgencyName ?? current.seoGoogle2026AgencyName ?? GOOGLE_2026_DEFAULTS.agencyName,
+    120
+  );
+  const nextSeoGoogle2026RolloutWindowEnabled =
+    seoGoogle2026RolloutWindowEnabled === undefined
+      ? Number(current.seoGoogle2026RolloutWindowEnabled ?? GOOGLE_2026_DEFAULTS.rolloutWindowEnabled)
+      : Number(seoGoogle2026RolloutWindowEnabled)
+        ? 1
+        : 0;
+  const nextSeoGoogle2026RolloutWindow = normalizeGoogle2026Text(
+    seoGoogle2026RolloutWindow ?? current.seoGoogle2026RolloutWindow ?? GOOGLE_2026_DEFAULTS.rolloutWindow,
+    800
+  );
+  const nextSeoGoogle2026TechnicalSeoEnabled =
+    seoGoogle2026TechnicalSeoEnabled === undefined
+      ? Number(current.seoGoogle2026TechnicalSeoEnabled ?? GOOGLE_2026_DEFAULTS.technicalSeoEnabled)
+      : Number(seoGoogle2026TechnicalSeoEnabled)
+        ? 1
+        : 0;
+  const nextSeoGoogle2026TechnicalSeo = normalizeGoogle2026Text(
+    seoGoogle2026TechnicalSeo ?? current.seoGoogle2026TechnicalSeo ?? GOOGLE_2026_DEFAULTS.technicalSeo,
+    4000
+  );
+  const nextSeoGoogle2026CoreWebVitalsEnabled =
+    seoGoogle2026CoreWebVitalsEnabled === undefined
+      ? Number(current.seoGoogle2026CoreWebVitalsEnabled ?? GOOGLE_2026_DEFAULTS.coreWebVitalsEnabled)
+      : Number(seoGoogle2026CoreWebVitalsEnabled)
+        ? 1
+        : 0;
+  const nextSeoGoogle2026CoreWebVitals = normalizeGoogle2026Text(
+    seoGoogle2026CoreWebVitals ?? current.seoGoogle2026CoreWebVitals ?? GOOGLE_2026_DEFAULTS.coreWebVitals,
+    4000
+  );
+  const nextSeoGoogle2026ContentQualityEnabled =
+    seoGoogle2026ContentQualityEnabled === undefined
+      ? Number(current.seoGoogle2026ContentQualityEnabled ?? GOOGLE_2026_DEFAULTS.contentQualityEnabled)
+      : Number(seoGoogle2026ContentQualityEnabled)
+        ? 1
+        : 0;
+  const nextSeoGoogle2026ContentQuality = normalizeGoogle2026Text(
+    seoGoogle2026ContentQuality ?? current.seoGoogle2026ContentQuality ?? GOOGLE_2026_DEFAULTS.contentQuality,
+    4000
+  );
+  const nextSeoGoogle2026SecurityMaintenanceEnabled =
+    seoGoogle2026SecurityMaintenanceEnabled === undefined
+      ? Number(current.seoGoogle2026SecurityMaintenanceEnabled ?? GOOGLE_2026_DEFAULTS.securityMaintenanceEnabled)
+      : Number(seoGoogle2026SecurityMaintenanceEnabled)
+        ? 1
+        : 0;
+  const nextSeoGoogle2026SecurityMaintenance = normalizeGoogle2026Text(
+    seoGoogle2026SecurityMaintenance ??
+      current.seoGoogle2026SecurityMaintenance ??
+      GOOGLE_2026_DEFAULTS.securityMaintenance,
+    4000
+  );
+  const nextSeoGoogle2026LocalAuthorityEnabled =
+    seoGoogle2026LocalAuthorityEnabled === undefined
+      ? Number(current.seoGoogle2026LocalAuthorityEnabled ?? GOOGLE_2026_DEFAULTS.localAuthorityEnabled)
+      : Number(seoGoogle2026LocalAuthorityEnabled)
+        ? 1
+        : 0;
+  const nextSeoGoogle2026LocalAuthority = normalizeGoogle2026Text(
+    seoGoogle2026LocalAuthority ?? current.seoGoogle2026LocalAuthority ?? GOOGLE_2026_DEFAULTS.localAuthority,
+    4000
+  );
+  const nextSeoGoogle2026UserExperienceEnabled =
+    seoGoogle2026UserExperienceEnabled === undefined
+      ? Number(current.seoGoogle2026UserExperienceEnabled ?? GOOGLE_2026_DEFAULTS.userExperienceEnabled)
+      : Number(seoGoogle2026UserExperienceEnabled)
+        ? 1
+        : 0;
+  const nextSeoGoogle2026UserExperience = normalizeGoogle2026Text(
+    seoGoogle2026UserExperience ?? current.seoGoogle2026UserExperience ?? GOOGLE_2026_DEFAULTS.userExperience,
+    4000
+  );
+  const nextSeoGoogle2026CompetitiveAdvantageEnabled =
+    seoGoogle2026CompetitiveAdvantageEnabled === undefined
+      ? Number(
+          current.seoGoogle2026CompetitiveAdvantageEnabled ?? GOOGLE_2026_DEFAULTS.competitiveAdvantageEnabled
+        )
+      : Number(seoGoogle2026CompetitiveAdvantageEnabled)
+        ? 1
+        : 0;
+  const nextSeoGoogle2026CompetitiveAdvantage = normalizeGoogle2026Text(
+    seoGoogle2026CompetitiveAdvantage ??
+      current.seoGoogle2026CompetitiveAdvantage ??
+      GOOGLE_2026_DEFAULTS.competitiveAdvantage,
+    4000
+  );
+  const nextSeoImagesModuleEnabled =
+    seoImagesModuleEnabled === undefined
+      ? Number(current.seoImagesModuleEnabled ?? SEO_IMAGES_DEFAULTS.moduleEnabled)
+      : Number(seoImagesModuleEnabled)
+        ? 1
+        : 0;
+  const nextSeoImagesFileNamesEnabled =
+    seoImagesFileNamesEnabled === undefined
+      ? Number(current.seoImagesFileNamesEnabled ?? SEO_IMAGES_DEFAULTS.fileNamesEnabled)
+      : Number(seoImagesFileNamesEnabled)
+        ? 1
+        : 0;
+  const nextSeoImagesFileNames = normalizeSeoImagesText(
+    seoImagesFileNames ?? current.seoImagesFileNames ?? SEO_IMAGES_DEFAULTS.fileNames,
+    4000
+  );
+  const nextSeoImagesResizeEnabled =
+    seoImagesResizeEnabled === undefined
+      ? Number(current.seoImagesResizeEnabled ?? SEO_IMAGES_DEFAULTS.resizeEnabled)
+      : Number(seoImagesResizeEnabled)
+        ? 1
+        : 0;
+  const nextSeoImagesResize = normalizeSeoImagesText(
+    seoImagesResize ?? current.seoImagesResize ?? SEO_IMAGES_DEFAULTS.resize,
+    4000
+  );
+  const nextSeoImagesCompressionEnabled =
+    seoImagesCompressionEnabled === undefined
+      ? Number(current.seoImagesCompressionEnabled ?? SEO_IMAGES_DEFAULTS.compressionEnabled)
+      : Number(seoImagesCompressionEnabled)
+        ? 1
+        : 0;
+  const nextSeoImagesCompression = normalizeSeoImagesText(
+    seoImagesCompression ?? current.seoImagesCompression ?? SEO_IMAGES_DEFAULTS.compression,
+    4000
+  );
+  const nextSeoImagesFormatEnabled =
+    seoImagesFormatEnabled === undefined
+      ? Number(current.seoImagesFormatEnabled ?? SEO_IMAGES_DEFAULTS.formatEnabled)
+      : Number(seoImagesFormatEnabled)
+        ? 1
+        : 0;
+  const nextSeoImagesFormat = normalizeSeoImagesText(
+    seoImagesFormat ?? current.seoImagesFormat ?? SEO_IMAGES_DEFAULTS.format,
+    4000
+  );
+  const nextSeoImagesSitemapEnabled =
+    seoImagesSitemapEnabled === undefined
+      ? Number(current.seoImagesSitemapEnabled ?? SEO_IMAGES_DEFAULTS.sitemapEnabled)
+      : Number(seoImagesSitemapEnabled)
+        ? 1
+        : 0;
+  const nextSeoImagesSitemap = normalizeSeoImagesText(
+    seoImagesSitemap ?? current.seoImagesSitemap ?? SEO_IMAGES_DEFAULTS.sitemap,
+    4000
+  );
+  const nextSeoImagesCdnEnabled =
+    seoImagesCdnEnabled === undefined
+      ? Number(current.seoImagesCdnEnabled ?? SEO_IMAGES_DEFAULTS.cdnEnabled)
+      : Number(seoImagesCdnEnabled)
+        ? 1
+        : 0;
+  const nextSeoImagesCdn = normalizeSeoImagesText(
+    seoImagesCdn ?? current.seoImagesCdn ?? SEO_IMAGES_DEFAULTS.cdn,
+    4000
+  );
+  const nextSeoImagesLazyLoadingEnabled =
+    seoImagesLazyLoadingEnabled === undefined
+      ? Number(current.seoImagesLazyLoadingEnabled ?? SEO_IMAGES_DEFAULTS.lazyLoadingEnabled)
+      : Number(seoImagesLazyLoadingEnabled)
+        ? 1
+        : 0;
+  const nextSeoImagesLazyLoading = normalizeSeoImagesText(
+    seoImagesLazyLoading ?? current.seoImagesLazyLoading ?? SEO_IMAGES_DEFAULTS.lazyLoading,
+    4000
+  );
+  const nextSeoImagesBrowserCacheEnabled =
+    seoImagesBrowserCacheEnabled === undefined
+      ? Number(current.seoImagesBrowserCacheEnabled ?? SEO_IMAGES_DEFAULTS.browserCacheEnabled)
+      : Number(seoImagesBrowserCacheEnabled)
+        ? 1
+        : 0;
+  const nextSeoImagesBrowserCache = normalizeSeoImagesText(
+    seoImagesBrowserCache ?? current.seoImagesBrowserCache ?? SEO_IMAGES_DEFAULTS.browserCache,
+    4000
+  );
+  const nextSeoImagesStructuredDataEnabled =
+    seoImagesStructuredDataEnabled === undefined
+      ? Number(current.seoImagesStructuredDataEnabled ?? SEO_IMAGES_DEFAULTS.structuredDataEnabled)
+      : Number(seoImagesStructuredDataEnabled)
+        ? 1
+        : 0;
+  const nextSeoImagesStructuredData = normalizeSeoImagesText(
+    seoImagesStructuredData ?? current.seoImagesStructuredData ?? SEO_IMAGES_DEFAULTS.structuredData,
+    4000
+  );
+  const nextSeoImagesSocialTagsEnabled =
+    seoImagesSocialTagsEnabled === undefined
+      ? Number(current.seoImagesSocialTagsEnabled ?? SEO_IMAGES_DEFAULTS.socialTagsEnabled)
+      : Number(seoImagesSocialTagsEnabled)
+        ? 1
+        : 0;
+  const nextSeoImagesSocialTags = normalizeSeoImagesText(
+    seoImagesSocialTags ?? current.seoImagesSocialTags ?? SEO_IMAGES_DEFAULTS.socialTags,
+    4000
+  );
+  const nextSeoImagesAuditEnabled =
+    seoImagesAuditEnabled === undefined
+      ? Number(current.seoImagesAuditEnabled ?? SEO_IMAGES_DEFAULTS.auditEnabled)
+      : Number(seoImagesAuditEnabled)
+        ? 1
+        : 0;
+  const nextSeoImagesAudit = normalizeSeoImagesText(
+    seoImagesAudit ?? current.seoImagesAudit ?? SEO_IMAGES_DEFAULTS.audit,
+    4000
+  );
+  const nextSeoTechFilesEnabled =
+    seoTechFilesEnabled === undefined
+      ? Number(current.seoTechFilesEnabled ?? SEO_TECH_FILES_DEFAULTS.moduleEnabled)
+      : Number(seoTechFilesEnabled)
+        ? 1
+        : 0;
+  const nextSeoSitemapGeneratorEnabled =
+    seoSitemapGeneratorEnabled === undefined
+      ? Number(current.seoSitemapGeneratorEnabled ?? SEO_TECH_FILES_DEFAULTS.sitemapGeneratorEnabled)
+      : Number(seoSitemapGeneratorEnabled)
+        ? 1
+        : 0;
+  const nextSeoSitemapGeneratorNotes = normalizeSeoTechFileText(
+    seoSitemapGeneratorNotes ?? current.seoSitemapGeneratorNotes ?? SEO_TECH_FILES_DEFAULTS.sitemapGeneratorNotes,
+    4000
+  );
+  const nextSeoRobotsTxtEnabled =
+    seoRobotsTxtEnabled === undefined
+      ? Number(current.seoRobotsTxtEnabled ?? SEO_TECH_FILES_DEFAULTS.robotsTxtEnabled)
+      : Number(seoRobotsTxtEnabled)
+        ? 1
+        : 0;
+  const nextSeoRobotsTxtContent = normalizeSeoTechFileText(
+    seoRobotsTxtContent ?? current.seoRobotsTxtContent ?? SEO_TECH_FILES_DEFAULTS.robotsTxtContent,
+    12000
+  );
+  const nextSeoHtaccessEnabled =
+    seoHtaccessEnabled === undefined
+      ? Number(current.seoHtaccessEnabled ?? SEO_TECH_FILES_DEFAULTS.htaccessEnabled)
+      : Number(seoHtaccessEnabled)
+        ? 1
+        : 0;
+  const nextSeoHtaccessContent = normalizeSeoTechFileText(
+    seoHtaccessContent ?? current.seoHtaccessContent ?? SEO_TECH_FILES_DEFAULTS.htaccessContent,
+    16000
+  );
+
+  const socialWasProvided = seoSocialMetaEnabled !== undefined;
+  if (!socialWasProvided && (seoOpenGraphEnabled !== undefined || seoTwitterCardsEnabled !== undefined)) {
+    nextSeoSocialMetaEnabled = nextSeoOpenGraphEnabled || nextSeoTwitterCardsEnabled ? 1 : 0;
+  }
+
+  if (!nextStoreName || !nextWhatsappNumber) {
+    throw new Error('Nombre de tienda y WhatsApp son obligatorios.');
+  }
+
+  await run(
+    `UPDATE settings
+     SET
+       store_name = ?,
+       whatsapp_number = ?,
+       seo_social_meta_enabled = ?,
+       seo_html_meta_enabled = ?,
+       seo_open_graph_enabled = ?,
+       seo_twitter_cards_enabled = ?,
+       seo_advanced_tags_enabled = ?,
+       seo_schema_markup_enabled = ?,
+       seo_html_default_title = ?,
+       seo_html_default_description = ?,
+       seo_html_default_keywords = ?,
+       seo_html_author = ?,
+       seo_html_robots_index_enabled = ?,
+       seo_html_robots_follow_enabled = ?,
+       seo_html_content_language = ?,
+       seo_html_geo_region = ?,
+       seo_html_geo_placename = ?,
+       seo_html_geo_position = ?,
+       seo_og_default_title = ?,
+       seo_og_default_description = ?,
+       seo_og_images_json = ?,
+       seo_og_url = ?,
+       seo_og_type = ?,
+       seo_og_site_name = ?,
+       seo_og_locale = ?,
+       seo_twitter_card_type = ?,
+       seo_twitter_title = ?,
+       seo_twitter_description = ?,
+       seo_twitter_image_url = ?,
+       seo_twitter_site_handle = ?,
+       seo_twitter_creator_handle = ?,
+       seo_advanced_canonical_url = ?,
+       seo_advanced_noarchive_enabled = ?,
+       seo_advanced_nosnippet_enabled = ?,
+       seo_advanced_noimageindex_enabled = ?,
+       seo_advanced_max_snippet = ?,
+       seo_advanced_max_image_preview = ?,
+       seo_advanced_max_video_preview = ?,
+       seo_advanced_unavailable_after = ?,
+       seo_advanced_googlebot_rules = ?,
+       seo_advanced_googlebot_news_rules = ?,
+       seo_advanced_hreflang_json = ?,
+       seo_schema_type = ?,
+       seo_schema_name = ?,
+       seo_schema_description = ?,
+       seo_schema_image_url = ?,
+       seo_schema_url = ?,
+       seo_schema_author = ?,
+       seo_schema_date_published = ?,
+       seo_schema_headline = ?,
+       seo_google_2026_enabled = ?,
+       seo_google_2026_agency_name = ?,
+       seo_google_2026_rollout_window_enabled = ?,
+       seo_google_2026_rollout_window = ?,
+       seo_google_2026_technical_seo_enabled = ?,
+       seo_google_2026_technical_seo = ?,
+       seo_google_2026_core_web_vitals_enabled = ?,
+       seo_google_2026_core_web_vitals = ?,
+       seo_google_2026_content_quality_enabled = ?,
+       seo_google_2026_content_quality = ?,
+       seo_google_2026_security_maintenance_enabled = ?,
+       seo_google_2026_security_maintenance = ?,
+       seo_google_2026_local_authority_enabled = ?,
+       seo_google_2026_local_authority = ?,
+       seo_google_2026_user_experience_enabled = ?,
+       seo_google_2026_user_experience = ?,
+       seo_google_2026_competitive_advantage_enabled = ?,
+       seo_google_2026_competitive_advantage = ?,
+       seo_images_module_enabled = ?,
+       seo_images_file_names_enabled = ?,
+       seo_images_file_names = ?,
+       seo_images_resize_enabled = ?,
+       seo_images_resize = ?,
+       seo_images_compression_enabled = ?,
+       seo_images_compression = ?,
+       seo_images_format_enabled = ?,
+       seo_images_format = ?,
+       seo_images_sitemap_enabled = ?,
+       seo_images_sitemap = ?,
+       seo_images_cdn_enabled = ?,
+       seo_images_cdn = ?,
+       seo_images_lazy_loading_enabled = ?,
+       seo_images_lazy_loading = ?,
+       seo_images_browser_cache_enabled = ?,
+       seo_images_browser_cache = ?,
+       seo_images_structured_data_enabled = ?,
+       seo_images_structured_data = ?,
+       seo_images_social_tags_enabled = ?,
+       seo_images_social_tags = ?,
+       seo_images_audit_enabled = ?,
+       seo_images_audit = ?,
+       seo_tech_files_enabled = ?,
+       seo_sitemap_generator_enabled = ?,
+       seo_sitemap_generator_notes = ?,
+       seo_robots_txt_enabled = ?,
+       seo_robots_txt_content = ?,
+       seo_htaccess_enabled = ?,
+       seo_htaccess_content = ?,
+       updated_at = datetime('now', 'localtime')
+     WHERE id = 1`,
+    [
+      nextStoreName,
+      nextWhatsappNumber,
+      nextSeoSocialMetaEnabled,
+      nextSeoHtmlMetaEnabled,
+      nextSeoOpenGraphEnabled,
+      nextSeoTwitterCardsEnabled,
+      nextSeoAdvancedTagsEnabled,
+      nextSeoSchemaMarkupEnabled,
+      nextSeoHtmlDefaultTitle,
+      nextSeoHtmlDefaultDescription,
+      nextSeoHtmlDefaultKeywords,
+      nextSeoHtmlAuthor,
+      nextSeoHtmlRobotsIndexEnabled,
+      nextSeoHtmlRobotsFollowEnabled,
+      nextSeoHtmlContentLanguage,
+      nextSeoHtmlGeoRegion,
+      nextSeoHtmlGeoPlaceName,
+      nextSeoHtmlGeoPosition,
+      nextSeoOgDefaultTitle,
+      nextSeoOgDefaultDescription,
+      nextSeoOgImagesJson,
+      nextSeoOgUrl,
+      nextSeoOgType,
+      nextSeoOgSiteName,
+      nextSeoOgLocale,
+      nextSeoTwitterCardType,
+      nextSeoTwitterTitle,
+      nextSeoTwitterDescription,
+      nextSeoTwitterImageUrl,
+      nextSeoTwitterSiteHandle,
+      nextSeoTwitterCreatorHandle,
+      nextSeoAdvancedCanonicalUrl,
+      nextSeoAdvancedNoArchiveEnabled,
+      nextSeoAdvancedNoSnippetEnabled,
+      nextSeoAdvancedNoImageIndexEnabled,
+      nextSeoAdvancedMaxSnippet,
+      nextSeoAdvancedMaxImagePreview,
+      nextSeoAdvancedMaxVideoPreview,
+      nextSeoAdvancedUnavailableAfter,
+      nextSeoAdvancedGooglebotRules,
+      nextSeoAdvancedGooglebotNewsRules,
+      nextSeoAdvancedHreflangJson,
+      nextSeoSchemaType,
+      nextSeoSchemaName,
+      nextSeoSchemaDescription,
+      nextSeoSchemaImageUrl,
+      nextSeoSchemaUrl,
+      nextSeoSchemaAuthor,
+      nextSeoSchemaDatePublished,
+      nextSeoSchemaHeadline,
+      nextSeoGoogle2026Enabled,
+      nextSeoGoogle2026AgencyName,
+      nextSeoGoogle2026RolloutWindowEnabled,
+      nextSeoGoogle2026RolloutWindow,
+      nextSeoGoogle2026TechnicalSeoEnabled,
+      nextSeoGoogle2026TechnicalSeo,
+      nextSeoGoogle2026CoreWebVitalsEnabled,
+      nextSeoGoogle2026CoreWebVitals,
+      nextSeoGoogle2026ContentQualityEnabled,
+      nextSeoGoogle2026ContentQuality,
+      nextSeoGoogle2026SecurityMaintenanceEnabled,
+      nextSeoGoogle2026SecurityMaintenance,
+      nextSeoGoogle2026LocalAuthorityEnabled,
+      nextSeoGoogle2026LocalAuthority,
+      nextSeoGoogle2026UserExperienceEnabled,
+      nextSeoGoogle2026UserExperience,
+      nextSeoGoogle2026CompetitiveAdvantageEnabled,
+      nextSeoGoogle2026CompetitiveAdvantage,
+      nextSeoImagesModuleEnabled,
+      nextSeoImagesFileNamesEnabled,
+      nextSeoImagesFileNames,
+      nextSeoImagesResizeEnabled,
+      nextSeoImagesResize,
+      nextSeoImagesCompressionEnabled,
+      nextSeoImagesCompression,
+      nextSeoImagesFormatEnabled,
+      nextSeoImagesFormat,
+      nextSeoImagesSitemapEnabled,
+      nextSeoImagesSitemap,
+      nextSeoImagesCdnEnabled,
+      nextSeoImagesCdn,
+      nextSeoImagesLazyLoadingEnabled,
+      nextSeoImagesLazyLoading,
+      nextSeoImagesBrowserCacheEnabled,
+      nextSeoImagesBrowserCache,
+      nextSeoImagesStructuredDataEnabled,
+      nextSeoImagesStructuredData,
+      nextSeoImagesSocialTagsEnabled,
+      nextSeoImagesSocialTags,
+      nextSeoImagesAuditEnabled,
+      nextSeoImagesAudit,
+      nextSeoTechFilesEnabled,
+      nextSeoSitemapGeneratorEnabled,
+      nextSeoSitemapGeneratorNotes,
+      nextSeoRobotsTxtEnabled,
+      nextSeoRobotsTxtContent,
+      nextSeoHtaccessEnabled,
+      nextSeoHtaccessContent
+    ]
+  );
+
+  return getSettings();
 }
 
 async function listUsers() {
@@ -1213,6 +2993,9 @@ module.exports = {
   getProductById,
   createOrder,
   getPageBySlug,
+  getSettings,
+  listSettings,
+  updateSettings,
   authenticateUser,
   listUsers,
   createUser,

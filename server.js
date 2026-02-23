@@ -3,12 +3,16 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const sharp = require('sharp');
+const { buildSeoMetaTags, buildProductSocialMetaTags, injectSocialMetaIntoHtml } = require('./mod/social-meta');
 const {
   initDb,
   getProducts,
   getProductById,
   createOrder,
   getPageBySlug,
+  getSettings,
+  listSettings,
+  updateSettings,
   authenticateUser,
   listUsers,
   createUser,
@@ -52,6 +56,87 @@ function parseProductId(raw) {
   const value = Number(raw);
   if (!Number.isInteger(value) || value <= 0) return null;
   return value;
+}
+
+function getRequestBaseUrl(req) {
+  const forwardedProto = String(req.get('x-forwarded-proto') || '')
+    .split(',')[0]
+    .trim();
+  const protocol = forwardedProto || req.protocol || 'http';
+  return `${protocol}://${req.get('host')}`;
+}
+
+function escapeXml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function applyTextTemplate(value, vars = {}) {
+  return String(value || '')
+    .replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi, (_all, key) => {
+      const k = String(key || '').toLowerCase();
+      return vars[k] === undefined || vars[k] === null ? '' : String(vars[k]);
+    })
+    .trim();
+}
+
+function buildSitemapXml({ baseUrl, products = [] }) {
+  const now = new Date().toISOString();
+  const entries = [];
+
+  const staticPaths = ['/', '/help.html', '/security.html', '/cart.html'];
+  staticPaths.forEach((p) => {
+    entries.push({
+      loc: `${baseUrl}${p === '/' ? '' : p}`,
+      lastmod: now,
+      changefreq: p === '/' ? 'daily' : 'weekly',
+      priority: p === '/' ? '1.0' : '0.7',
+      image: ''
+    });
+  });
+
+  products.forEach((product) => {
+    if (!product || !Number.isInteger(Number(product.id))) return;
+    const loc = `${baseUrl}/product.html?id=${product.id}`;
+    const image =
+      product?.images?.[0]?.sliderUrl ||
+      product?.imageSliderUrl ||
+      product?.imageUrl ||
+      '';
+    entries.push({
+      loc,
+      lastmod: now,
+      changefreq: 'weekly',
+      priority: '0.8',
+      image
+    });
+  });
+
+  const body = entries
+    .map((entry) => {
+      const imageTag = entry.image
+        ? `
+    <image:image>
+      <image:loc>${escapeXml(entry.image.startsWith('http') ? entry.image : `${baseUrl}${entry.image}`)}</image:loc>
+    </image:image>`
+        : '';
+      return `  <url>
+    <loc>${escapeXml(entry.loc)}</loc>
+    <lastmod>${escapeXml(entry.lastmod)}</lastmod>
+    <changefreq>${escapeXml(entry.changefreq)}</changefreq>
+    <priority>${escapeXml(entry.priority)}</priority>${imageTag}
+  </url>`;
+    })
+    .join('\n');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+${body}
+</urlset>`;
 }
 
 function normalizeEntityType(raw) {
@@ -228,6 +313,337 @@ const imageUpload = multer({
 });
 
 app.use(express.json());
+
+function buildSeoModulesFromSettings(settings) {
+  const modules = {
+    htmlMeta: Number(settings?.seoHtmlMetaEnabled ?? 1) === 1,
+    openGraph: Number(settings?.seoOpenGraphEnabled ?? 1) === 1,
+    twitterCards: Number(settings?.seoTwitterCardsEnabled ?? 1) === 1,
+    advancedTags: Number(settings?.seoAdvancedTagsEnabled ?? 0) === 1,
+    schemaMarkup: Number(settings?.seoSchemaMarkupEnabled ?? 1) === 1
+  };
+
+  const legacySocialMetaEnabled = Number(settings?.seoSocialMetaEnabled ?? 1) === 1;
+  if (!legacySocialMetaEnabled) {
+    modules.openGraph = false;
+    modules.twitterCards = false;
+  }
+
+  return modules;
+}
+
+function hasEnabledSeoModules(modules) {
+  return Object.values(modules || {}).some(Boolean);
+}
+
+function parseOgImagesJson(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+function parseHreflangJson(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+function buildSeoDefaultsFromSettings(settings) {
+  return {
+    pageTitle: settings?.seoHtmlDefaultTitle || '',
+    metaDescription: settings?.seoHtmlDefaultDescription || '',
+    metaKeywords: settings?.seoHtmlDefaultKeywords || '',
+    author: settings?.seoHtmlAuthor || '',
+    robotsIndex: Number(settings?.seoHtmlRobotsIndexEnabled ?? 1) === 1,
+    robotsFollow: Number(settings?.seoHtmlRobotsFollowEnabled ?? 1) === 1,
+    contentLanguage: settings?.seoHtmlContentLanguage || 'es',
+    geoRegion: settings?.seoHtmlGeoRegion || '',
+    geoPlaceName: settings?.seoHtmlGeoPlaceName || '',
+    geoPosition: settings?.seoHtmlGeoPosition || '',
+    ogTitle: settings?.seoOgDefaultTitle || '',
+    ogDescription: settings?.seoOgDefaultDescription || '',
+    ogImages: parseOgImagesJson(settings?.seoOgImagesJson),
+    ogUrl: settings?.seoOgUrl || '',
+    ogType: settings?.seoOgType || 'website',
+    ogSiteName: settings?.seoOgSiteName || '',
+    ogLocale: settings?.seoOgLocale || '',
+    twitterCardType: settings?.seoTwitterCardType || 'summary_large_image',
+    twitterTitle: settings?.seoTwitterTitle || '',
+    twitterDescription: settings?.seoTwitterDescription || '',
+    twitterImage: settings?.seoTwitterImageUrl || '',
+    twitterSite: settings?.seoTwitterSiteHandle || '',
+    twitterCreator: settings?.seoTwitterCreatorHandle || '',
+    canonicalUrl: settings?.seoAdvancedCanonicalUrl || '',
+    advancedNoArchive: Number(settings?.seoAdvancedNoArchiveEnabled ?? 0) === 1,
+    advancedNoSnippet: Number(settings?.seoAdvancedNoSnippetEnabled ?? 0) === 1,
+    advancedNoImageIndex: Number(settings?.seoAdvancedNoImageIndexEnabled ?? 0) === 1,
+    advancedMaxSnippet: settings?.seoAdvancedMaxSnippet || '',
+    advancedMaxImagePreview: settings?.seoAdvancedMaxImagePreview || 'large',
+    advancedMaxVideoPreview: settings?.seoAdvancedMaxVideoPreview || '',
+    advancedUnavailableAfter: settings?.seoAdvancedUnavailableAfter || '',
+    advancedGooglebotRules: settings?.seoAdvancedGooglebotRules || '',
+    advancedGooglebotNewsRules: settings?.seoAdvancedGooglebotNewsRules || '',
+    advancedHreflang: parseHreflangJson(settings?.seoAdvancedHreflangJson),
+    schemaType: settings?.seoSchemaType || 'Article',
+    schemaName: settings?.seoSchemaName || '',
+    schemaDescription: settings?.seoSchemaDescription || '',
+    schemaImageUrl: settings?.seoSchemaImageUrl || '',
+    schemaUrl: settings?.seoSchemaUrl || '',
+    schemaAuthor: settings?.seoSchemaAuthor || '',
+    schemaDatePublished: settings?.seoSchemaDatePublished || '',
+    schemaHeadline: settings?.seoSchemaHeadline || ''
+  };
+}
+
+async function renderHtmlWithSeo(req, res, next, { templateName, buildTags }) {
+  try {
+    const templatePath = path.join(__dirname, 'public', templateName);
+    const templateHtml = await fs.promises.readFile(templatePath, 'utf8');
+    const settings = await getSettings().catch(() => null);
+    const seoModules = buildSeoModulesFromSettings(settings);
+    const seoDefaults = buildSeoDefaultsFromSettings(settings);
+
+    if (!hasEnabledSeoModules(seoModules)) {
+      return res.type('html').send(injectSocialMetaIntoHtml(templateHtml, ''));
+    }
+
+    const tags = (await buildTags({ req, settings, seoModules, seoDefaults })) || '';
+    return res.type('html').send(injectSocialMetaIntoHtml(templateHtml, tags));
+  } catch (error) {
+    return next(error);
+  }
+}
+
+app.get(['/', '/index.html'], async (req, res, next) => {
+  return renderHtmlWithSeo(req, res, next, {
+    templateName: 'index.html',
+    buildTags: async ({ req, settings, seoModules, seoDefaults }) => {
+      const baseUrl = getRequestBaseUrl(req);
+      const storeName = settings?.storeName || 'SLStore';
+      const canonicalUrl = `${baseUrl}/`;
+      return buildSeoMetaTags({
+        storeName,
+        canonicalUrl,
+        baseUrl,
+        modules: seoModules,
+        defaults: seoDefaults,
+        publication: {
+          title: 'Inicio',
+          description: 'Elegi productos deportivos, arma tu pedido y confirmalo por WhatsApp con el vendedor.',
+          keywords: `${storeName}, tienda deportiva, catalogo, futbol, entrenamiento`,
+          ogType: 'website',
+          schemaType: 'WebSite',
+          includeStoreInTitle: true
+        }
+      });
+    }
+  });
+});
+
+app.get('/cart.html', async (req, res, next) => {
+  return renderHtmlWithSeo(req, res, next, {
+    templateName: 'cart.html',
+    buildTags: async ({ req, settings, seoModules, seoDefaults }) => {
+      const baseUrl = getRequestBaseUrl(req);
+      const storeName = settings?.storeName || 'SLStore';
+      const canonicalUrl = `${baseUrl}/cart.html`;
+      return buildSeoMetaTags({
+        storeName,
+        canonicalUrl,
+        baseUrl,
+        modules: seoModules,
+        defaults: seoDefaults,
+        publication: {
+          title: 'Carrito',
+          description: 'Revisa tu pedido, valida cantidades y continua la compra por WhatsApp.',
+          keywords: `${storeName}, carrito, pedido, compra por whatsapp`,
+          ogType: 'website',
+          schemaType: 'WebPage',
+          includeStoreInTitle: true
+        }
+      });
+    }
+  });
+});
+
+app.get('/help.html', async (req, res, next) => {
+  return renderHtmlWithSeo(req, res, next, {
+    templateName: 'help.html',
+    buildTags: async ({ req, settings, seoModules, seoDefaults }) => {
+      const baseUrl = getRequestBaseUrl(req);
+      const storeName = settings?.storeName || 'SLStore';
+      const page = await getPageBySlug('help').catch(() => null);
+      const title = page?.title || 'Ayuda';
+      const description = page?.contentHtml || 'Guia para armar pedidos prolijos y cerrarlos por WhatsApp.';
+      const canonicalUrl = `${baseUrl}/help.html`;
+      return buildSeoMetaTags({
+        storeName,
+        canonicalUrl,
+        baseUrl,
+        modules: seoModules,
+        defaults: seoDefaults,
+        publication: {
+          title,
+          description,
+          keywords: `${storeName}, ayuda, como comprar, pedidos por whatsapp`,
+          ogType: 'article',
+          schemaType: 'Article',
+          includeStoreInTitle: true
+        }
+      });
+    }
+  });
+});
+
+app.get(['/security.html', '/seguridad.html'], async (req, res, next) => {
+  return renderHtmlWithSeo(req, res, next, {
+    templateName: 'security.html',
+    buildTags: async ({ req, settings, seoModules, seoDefaults }) => {
+      const baseUrl = getRequestBaseUrl(req);
+      const storeName = settings?.storeName || 'SLStore';
+      const page = await getPageBySlug('security').catch(() => null);
+      const title = page?.title || 'Seguridad';
+      const canonicalUrl = `${baseUrl}/security.html`;
+      return buildSeoMetaTags({
+        storeName,
+        canonicalUrl,
+        baseUrl,
+        modules: seoModules,
+        defaults: seoDefaults,
+        publication: {
+          title,
+          description: 'Guia de seguridad web y anti-scrape para proteger contenido, trafico y recursos del sitio.',
+          keywords: `${storeName}, seguridad web, anti scrape, proteccion de contenido`,
+          ogType: 'article',
+          schemaType: 'Article',
+          includeStoreInTitle: true
+        }
+      });
+    }
+  });
+});
+
+app.get('/product.html', async (req, res, next) => {
+  return renderHtmlWithSeo(req, res, next, {
+    templateName: 'product.html',
+    buildTags: async ({ req, settings, seoModules, seoDefaults }) => {
+      const productId = parseProductId(req.query?.id);
+      if (!productId) return '';
+
+      const product = await getProductById(productId);
+      if (!product) return '';
+
+      const baseUrl = getRequestBaseUrl(req);
+      const canonicalUrl = `${baseUrl}/product.html?id=${productId}`;
+      const primarySliderImage =
+        product?.images?.[0]?.sliderUrl ||
+        product?.imageSliderUrl ||
+        product?.imageUrl ||
+        '';
+
+      return buildProductSocialMetaTags({
+        storeName: settings?.storeName || 'SLStore',
+        product,
+        canonicalUrl,
+        imageUrl: primarySliderImage,
+        baseUrl,
+        modules: seoModules,
+        defaults: seoDefaults
+      });
+    }
+  });
+});
+
+app.get('/sitemap.xml', async (req, res) => {
+  try {
+    const settings = await getSettings().catch(() => null);
+    const moduleEnabled = Number(settings?.seoTechFilesEnabled ?? 1) === 1;
+    const sitemapEnabled = Number(settings?.seoSitemapGeneratorEnabled ?? 1) === 1;
+    if (!moduleEnabled || !sitemapEnabled) {
+      return res.status(404).type('text/plain').send('Sitemap deshabilitado.');
+    }
+
+    const products = await getProducts().catch(() => []);
+    const baseUrl = getRequestBaseUrl(req);
+    const xml = buildSitemapXml({ baseUrl, products });
+    return res.type('application/xml').send(xml);
+  } catch (_error) {
+    return res.status(500).type('text/plain').send('No se pudo generar sitemap.xml');
+  }
+});
+
+app.get('/robots.txt', async (req, res) => {
+  try {
+    const settings = await getSettings().catch(() => null);
+    const moduleEnabled = Number(settings?.seoTechFilesEnabled ?? 1) === 1;
+    const robotsEnabled = Number(settings?.seoRobotsTxtEnabled ?? 1) === 1;
+    const baseUrl = getRequestBaseUrl(req);
+    const sitemapUrl = `${baseUrl}/sitemap.xml`;
+
+    let robotsText = String(settings?.seoRobotsTxtContent || '').trim();
+    if (!moduleEnabled || !robotsEnabled) {
+      robotsText = ['User-agent: *', 'Disallow: /'].join('\n');
+    } else if (!robotsText) {
+      const canIndex = Number(settings?.seoHtmlRobotsIndexEnabled ?? 1) === 1;
+      robotsText = canIndex
+        ? ['User-agent: *', 'Allow: /', `Sitemap: ${sitemapUrl}`].join('\n')
+        : ['User-agent: *', 'Disallow: /', `Sitemap: ${sitemapUrl}`].join('\n');
+    } else {
+      robotsText = applyTextTemplate(robotsText, {
+        baseurl: baseUrl,
+        siteurl: baseUrl,
+        sitemapurl: sitemapUrl
+      });
+    }
+
+    const out = robotsText.endsWith('\n') ? robotsText : `${robotsText}\n`;
+    return res.type('text/plain; charset=utf-8').send(out);
+  } catch (_error) {
+    return res.status(500).type('text/plain').send('No se pudo generar robots.txt');
+  }
+});
+
+app.get('/htaccess.txt', async (req, res) => {
+  try {
+    const settings = await getSettings().catch(() => null);
+    const moduleEnabled = Number(settings?.seoTechFilesEnabled ?? 1) === 1;
+    const htaccessEnabled = Number(settings?.seoHtaccessEnabled ?? 0) === 1;
+    if (!moduleEnabled || !htaccessEnabled) {
+      return res.status(404).type('text/plain').send('htaccess deshabilitado.');
+    }
+
+    const baseUrl = getRequestBaseUrl(req);
+    const sitemapUrl = `${baseUrl}/sitemap.xml`;
+    const configured = String(settings?.seoHtaccessContent || '').trim();
+    const fallback = [
+      '# SLStore htaccess',
+      '# Sitemap: {{sitemapUrl}}',
+      '<IfModule mod_rewrite.c>',
+      '  RewriteEngine On',
+      '</IfModule>'
+    ].join('\n');
+    const text = applyTextTemplate(configured || fallback, {
+      baseurl: baseUrl,
+      siteurl: baseUrl,
+      sitemapurl: sitemapUrl
+    });
+    const out = text.endsWith('\n') ? text : `${text}\n`;
+    return res.type('text/plain; charset=utf-8').send(out);
+  } catch (_error) {
+    return res.status(500).type('text/plain').send('No se pudo generar htaccess.');
+  }
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/panel', express.static(path.join(__dirname, 'public', 'panel')));
 
@@ -270,7 +686,9 @@ app.post('/api/orders', async (req, res) => {
       return res.status(400).json({ error: 'Datos de pedido inválidos.' });
     }
 
-    const order = await createOrder({ customer, items, whatsappNumber: WHATSAPP_NUMBER });
+    const settings = await getSettings();
+    const whatsappNumber = settings?.whatsappNumber || WHATSAPP_NUMBER;
+    const order = await createOrder({ customer, items, whatsappNumber });
     return res.status(201).json(order);
   } catch (error) {
     return res.status(400).json({ error: error.message || 'No se pudo crear el pedido.' });
@@ -432,6 +850,26 @@ app.delete('/api/panel/users/:id', async (req, res) => {
     return res.json({ ok: true });
   } catch (error) {
     return res.status(500).json({ error: 'No se pudo eliminar usuario.' });
+  }
+});
+
+app.get('/api/panel/settings', async (_req, res) => {
+  try {
+    res.json(await listSettings());
+  } catch (error) {
+    res.status(500).json({ error: 'No se pudo cargar configuración.' });
+  }
+});
+
+app.put('/api/panel/settings/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'ID inválido.' });
+    if (id !== 1) return res.status(400).json({ error: 'Solo existe una configuración principal.' });
+    const updated = await updateSettings(req.body || {});
+    return res.json(updated);
+  } catch (error) {
+    return res.status(400).json({ error: error.message || 'No se pudo actualizar configuración.' });
   }
 });
 
@@ -621,6 +1059,10 @@ app.delete('/api/panel/products/:id', async (req, res) => {
 
 app.get('/panel', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'panel', 'index.html'));
+});
+
+app.get(['/panel/security', '/panel/seguridad'], (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'panel', 'security.html'));
 });
 
 app.use((req, res) => {
