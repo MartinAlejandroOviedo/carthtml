@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Panel | SLStore</title>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="/vendor/lucide/lucide.min.js"></script>
     <link rel="stylesheet" href="/tailwind.css" />
     <link rel="stylesheet" href="/styles.css" />
     <script>
@@ -25,8 +25,22 @@
         <div class="mb-3 flex items-center justify-between gap-3">
           <p id="view-title" class="font-display text-2xl uppercase text-white">CRUD</p>
           <div class="flex gap-2">
-            <button id="refresh-view" class="rounded-lg border border-sky-300/30 bg-sky-500/20 px-3 py-1.5 text-xs text-sky-100">Recargar</button>
-            <button id="new-item" class="rounded-lg border border-emerald-300/30 bg-emerald-500/20 px-3 py-1.5 text-xs text-emerald-100">Nuevo</button>
+            <button
+              id="refresh-view"
+              class="has-tooltip inline-flex h-9 w-9 items-center justify-center rounded-lg border border-sky-300/30 bg-sky-500/20 text-sky-100"
+              aria-label="Recargar"
+              data-tooltip="Recargar"
+            >
+              <span class="lucide h-4 w-4" data-lucide="refresh-cw" aria-hidden="true"></span>
+            </button>
+            <button
+              id="new-item"
+              class="has-tooltip inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-300/30 bg-emerald-500/20 text-emerald-100"
+              aria-label="Nuevo"
+              data-tooltip="Nuevo"
+            >
+              <span class="lucide h-4 w-4" data-lucide="plus" aria-hidden="true"></span>
+            </button>
           </div>
         </div>
 

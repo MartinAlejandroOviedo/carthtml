@@ -4,8 +4,9 @@
   "description": "Tienda deportiva mobile-first con carrito, SQLite y checkout por WhatsApp",
   "main": "server.js",
   "scripts": {
-    "start": "npm run tw:build && node server.js",
-    "dev": "npm run tw:build && node server.js",
+    "icons:vendor": "mkdir -p public/vendor/lucide && cp node_modules/lucide/dist/umd/lucide.min.js public/vendor/lucide/lucide.min.js",
+    "start": "npm run icons:vendor && npm run tw:build && node server.js",
+    "dev": "npm run icons:vendor && npm run tw:build && node server.js",
     "tw:build": "tailwindcss -c tailwind.config.js -i ./src/tailwind.input.css -o ./public/tailwind.css --minify",
     "tw:watch": "tailwindcss -c tailwind.config.js -i ./src/tailwind.input.css -o ./public/tailwind.css --watch"
   },
@@ -18,7 +19,9 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@lucide/lab": "^0.1.2",
     "express": "^4.21.2",
+    "lucide": "^0.575.0",
     "multer": "^2.0.2",
     "sharp": "^0.34.5",
     "sqlite3": "^5.1.7"

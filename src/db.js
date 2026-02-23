@@ -468,6 +468,133 @@ function parseCsv(value) {
     .filter(Boolean);
 }
 
+function extractImageStem(fileUrl) {
+  const raw = String(fileUrl || '').trim();
+  if (!raw) return '';
+  const normalized = raw.split('?')[0].split('#')[0];
+  const baseName = path.posix.basename(normalized);
+  const stem = baseName.replace(/\.[a-z0-9]{2,5}$/i, '');
+  return stem
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function shouldAutofillImageAlt(value) {
+  const text = String(value || '').trim();
+  if (!text) return true;
+  if (text.length < 3) return true;
+  if (text.startsWith('/uploads/')) return true;
+  if (/^https?:\/\//i.test(text)) return true;
+  if (/^[a-z0-9_.-]+\.(jpg|jpeg|png|webp|gif|avif|svg)$/i.test(text)) return true;
+  if (/[\\/]/.test(text) && /\.[a-z0-9]{2,5}$/i.test(text)) return true;
+  return false;
+}
+
+function buildProductImageAlt(product = {}, fileUrl = '') {
+  const productName = normalizeText(product?.name, 100);
+  const productCategory = normalizeText(product?.category, 60);
+  const productDescription = normalizeText(product?.description, 120);
+  const imageStem = normalizeText(extractImageStem(fileUrl), 60);
+
+  const parts = [];
+  if (productName) parts.push(productName);
+  if (productCategory && !productName.toLowerCase().includes(productCategory.toLowerCase())) {
+    parts.push(productCategory);
+  }
+  if (productDescription) {
+    parts.push(productDescription);
+  } else if (imageStem) {
+    parts.push(imageStem);
+  }
+
+  return normalizeText(parts.join(' - '), 160);
+}
+
+async function getProductMetaForAlt(productId) {
+  const normalizedProductId = Number(productId);
+  if (!Number.isInteger(normalizedProductId) || normalizedProductId <= 0) return null;
+  return get(
+    `SELECT id, name, category, description
+     FROM products
+     WHERE id = ?`,
+    [normalizedProductId]
+  );
+}
+
+async function isSeoImagesModuleEnabled() {
+  const row = await get(
+    `SELECT seo_images_module_enabled as enabled
+     FROM settings
+     WHERE id = 1`
+  );
+  return Number(row?.enabled ?? 1) === 1;
+}
+
+async function refreshProductImageAltTexts(productId, providedProduct = null) {
+  if (!(await isSeoImagesModuleEnabled())) return;
+
+  const normalizedProductId = Number(productId);
+  if (!Number.isInteger(normalizedProductId) || normalizedProductId <= 0) return;
+
+  const product = providedProduct || (await getProductMetaForAlt(normalizedProductId));
+  if (!product) return;
+
+  const images = await all(
+    `SELECT id, url, alt_text as altText
+     FROM product_images
+     WHERE product_id = ?`,
+    [normalizedProductId]
+  );
+
+  for (const image of images) {
+    if (!shouldAutofillImageAlt(image.altText)) continue;
+    const nextAlt = buildProductImageAlt(product, image.url);
+    const currentAlt = normalizeText(image.altText, 160);
+    if (!nextAlt || nextAlt === currentAlt) continue;
+    await run('UPDATE product_images SET alt_text = ? WHERE id = ?', [nextAlt, image.id]);
+  }
+}
+
+async function regenerateAllProductImageAltTexts() {
+  if (!(await isSeoImagesModuleEnabled())) {
+    throw new Error('El modulo SEO Imagenes esta desactivado.');
+  }
+
+  const products = await all(
+    `SELECT id, name, category, description
+     FROM products
+     ORDER BY id ASC`
+  );
+
+  let updated = 0;
+  let processed = 0;
+
+  for (const product of products) {
+    const images = await all(
+      `SELECT id, url, alt_text as altText
+       FROM product_images
+       WHERE product_id = ?`,
+      [product.id]
+    );
+
+    for (const image of images) {
+      const nextAlt = buildProductImageAlt(product, image.url);
+      const currentAlt = normalizeText(image.altText, 160);
+      if (!nextAlt || nextAlt === currentAlt) continue;
+      await run('UPDATE product_images SET alt_text = ? WHERE id = ?', [nextAlt, image.id]);
+      updated += 1;
+    }
+    processed += images.length;
+  }
+
+  return {
+    products: products.length,
+    images: processed,
+    updated
+  };
+}
+
 function formatProductRow(row) {
   return {
     id: row.id,
@@ -577,6 +704,8 @@ async function addColumnIfMissing(tableName, columnName, definition) {
 }
 
 async function ensureSchemaMigrations() {
+  await addColumnIfMissing('categories', 'icon', "TEXT NOT NULL DEFAULT 'tag'");
+  await addColumnIfMissing('pages', 'image_url', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('products', 'colors', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('products', 'sizes', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('products', 'stock_qty', 'INTEGER NOT NULL DEFAULT 0');
@@ -585,6 +714,10 @@ async function ensureSchemaMigrations() {
   await addColumnIfMissing('order_items', 'color', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('order_items', 'size', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('order_items', 'detail_text', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('orders', 'customer_province', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('orders', 'customer_city', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('orders', 'delivery_type', "TEXT NOT NULL DEFAULT 'home'");
+  await addColumnIfMissing('orders', 'delivery_branch', "TEXT NOT NULL DEFAULT ''");
 
   await addColumnIfMissing('settings', 'seo_html_meta_enabled', 'INTEGER NOT NULL DEFAULT 1');
   await addColumnIfMissing('settings', 'seo_open_graph_enabled', 'INTEGER NOT NULL DEFAULT 1');
@@ -681,6 +814,16 @@ async function ensureSchemaMigrations() {
   await addColumnIfMissing('settings', 'seo_robots_txt_content', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('settings', 'seo_htaccess_enabled', 'INTEGER NOT NULL DEFAULT 0');
   await addColumnIfMissing('settings', 'seo_htaccess_content', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'security_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'security_headers_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'security_rate_limit_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'security_rate_limit_window_sec', 'INTEGER NOT NULL DEFAULT 60');
+  await addColumnIfMissing('settings', 'security_rate_limit_max', 'INTEGER NOT NULL DEFAULT 120');
+  await addColumnIfMissing('settings', 'security_order_rate_limit_max', 'INTEGER NOT NULL DEFAULT 20');
+  await addColumnIfMissing('settings', 'security_block_bad_ua_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'security_blocked_ua_patterns', "TEXT NOT NULL DEFAULT 'bot,crawler,scrapy,python-requests,curl,wget,httpclient'");
+  await addColumnIfMissing('settings', 'security_honeypot_enabled', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('settings', 'security_honeypot_field', "TEXT NOT NULL DEFAULT 'website'");
 }
 
 async function seedProductsIfNeeded() {
@@ -798,7 +941,7 @@ async function backfillProductAttributesIfNeeded() {
 }
 
 async function ensureCategoriesAndImagesFromProducts() {
-  const products = await all('SELECT id, name, category, image_url FROM products');
+  const products = await all('SELECT id, name, category, description, image_url FROM products');
 
   for (const product of products) {
     const categoryName = normalizeText(product.category, 80);
@@ -845,21 +988,48 @@ async function ensureCategoriesAndImagesFromProducts() {
       await run(
         `INSERT INTO product_images (product_id, url, alt_text, sort_order)
          VALUES (?, ?, ?, 0)`,
-        [product.id, product.image_url, product.name]
+        [product.id, product.image_url, buildProductImageAlt(product, product.image_url)]
       );
     }
+
+    await refreshProductImageAltTexts(product.id, product);
   }
 }
 
 async function seedDefaultCategories() {
+  const iconByCategory = {
+    'Fútbol': 'goal',
+    Entrenamiento: 'dumbbell',
+    Running: 'footprints',
+    Indumentaria: 'shirt',
+    Calzado: 'footprints',
+    Accesorios: 'watch',
+    'Bolsos y mochilas': 'backpack'
+  };
+
   for (const name of DEFAULT_CATEGORIES) {
     const slug = slugify(name);
+    const icon = normalizeText(iconByCategory[name] || 'tag', 40).toLowerCase() || 'tag';
     await run(
-      `INSERT OR IGNORE INTO categories (name, slug)
-       VALUES (?, ?)`,
-      [name, slug]
+      `INSERT OR IGNORE INTO categories (name, slug, icon)
+       VALUES (?, ?, ?)`,
+      [name, slug, icon]
+    );
+    await run(
+      `UPDATE categories
+       SET icon = ?
+       WHERE slug = ?
+         AND (icon IS NULL OR trim(icon) = '' OR icon = 'tag')`,
+      [icon, slug]
     );
   }
+
+  await run(
+    `UPDATE categories
+     SET icon = 'footprints'
+     WHERE slug = 'calzado'
+       AND (icon IS NULL OR trim(icon) = '' OR icon = 'tag' OR icon = 'shoe' OR icon = 'sneaker')`
+  );
 }
 
 async function seedPages() {
@@ -1221,7 +1391,14 @@ function buildWhatsappMessage(order) {
     `Pedido #${order.id}`,
     `Cliente: ${order.customer_name}`,
     `Teléfono: ${order.customer_phone}`,
-    `Dirección: ${order.customer_address || 'Sin dirección'}`,
+    `Provincia: ${order.customer_province || '-'}`,
+    `Ciudad: ${order.customer_city || '-'}`,
+    `Entrega: ${order.delivery_type === 'branch' ? 'Sucursal Correo Argentino' : 'Domicilio'}`,
+    `${
+      order.delivery_type === 'branch'
+        ? `Sucursal: ${order.delivery_branch || '-'}`
+        : `Dirección: ${order.customer_address || 'Sin dirección'}`
+    }`,
     '',
     '*Detalle:*'
   ];
@@ -1259,7 +1436,8 @@ async function initDb() {
   await run(`CREATE TABLE IF NOT EXISTS categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
-    slug TEXT NOT NULL UNIQUE
+    slug TEXT NOT NULL UNIQUE,
+    icon TEXT NOT NULL DEFAULT 'tag'
   )`);
 
   await run(`CREATE TABLE IF NOT EXISTS product_categories (
@@ -1283,8 +1461,18 @@ async function initDb() {
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     slug TEXT NOT NULL UNIQUE,
     title TEXT NOT NULL,
+    image_url TEXT NOT NULL DEFAULT '',
     content_html TEXT NOT NULL,
     updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+  )`);
+
+  await run(`CREATE TABLE IF NOT EXISTS page_images (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    page_id INTEGER NOT NULL,
+    url TEXT NOT NULL,
+    alt_text TEXT NOT NULL DEFAULT '',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (page_id) REFERENCES pages(id)
   )`);
 
   await run(`CREATE TABLE IF NOT EXISTS users (
@@ -1397,6 +1585,16 @@ async function initDb() {
     seo_robots_txt_content TEXT NOT NULL DEFAULT '',
     seo_htaccess_enabled INTEGER NOT NULL DEFAULT 0,
     seo_htaccess_content TEXT NOT NULL DEFAULT '',
+    security_enabled INTEGER NOT NULL DEFAULT 1,
+    security_headers_enabled INTEGER NOT NULL DEFAULT 1,
+    security_rate_limit_enabled INTEGER NOT NULL DEFAULT 1,
+    security_rate_limit_window_sec INTEGER NOT NULL DEFAULT 60,
+    security_rate_limit_max INTEGER NOT NULL DEFAULT 120,
+    security_order_rate_limit_max INTEGER NOT NULL DEFAULT 20,
+    security_block_bad_ua_enabled INTEGER NOT NULL DEFAULT 1,
+    security_blocked_ua_patterns TEXT NOT NULL DEFAULT 'bot,crawler,scrapy,python-requests,curl,wget,httpclient',
+    security_honeypot_enabled INTEGER NOT NULL DEFAULT 1,
+    security_honeypot_field TEXT NOT NULL DEFAULT 'website',
     updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
   )`);
 
@@ -1404,6 +1602,10 @@ async function initDb() {
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     customer_name TEXT NOT NULL,
     customer_phone TEXT NOT NULL,
+    customer_province TEXT NOT NULL DEFAULT '',
+    customer_city TEXT NOT NULL DEFAULT '',
+    delivery_type TEXT NOT NULL DEFAULT 'home',
+    delivery_branch TEXT NOT NULL DEFAULT '',
     customer_address TEXT,
     notes TEXT,
     total_ars INTEGER NOT NULL,
@@ -1456,20 +1658,32 @@ async function getPageBySlug(slug) {
   const normalizedLookupSlug = normalizedSlug === 'seguridad' ? 'security' : normalizedSlug;
 
   const row = await get(
-    `SELECT slug, title, content_html as contentHtml, updated_at as updatedAt
+    `SELECT slug, title, image_url as imageUrl, content_html as contentHtml, updated_at as updatedAt
      FROM pages
      WHERE slug = ?`,
     [normalizedLookupSlug]
   );
 
-  if (row) return row;
+  if (row) {
+    const pageImages = await all(
+      `SELECT url, alt_text as altText
+       FROM page_images
+       WHERE page_id = (SELECT id FROM pages WHERE slug = ? LIMIT 1)
+       ORDER BY sort_order ASC, id ASC`,
+      [normalizedLookupSlug]
+    );
+    row.images = buildProductImages(row.imageUrl, pageImages, row.title || normalizedLookupSlug);
+    return row;
+  }
 
   // Fallback so `/api/pages/help` never fails even if seed wasn't run yet.
   if (normalizedLookupSlug === 'help') {
     return {
       slug: 'help',
       title: HELP_PAGE_TITLE,
+      imageUrl: '',
       contentHtml: HELP_PAGE_CONTENT_HTML,
+      images: [],
       updatedAt: null
     };
   }
@@ -1478,7 +1692,9 @@ async function getPageBySlug(slug) {
     return {
       slug: 'security',
       title: SECURITY_PAGE_TITLE,
+      imageUrl: '',
       contentHtml: SECURITY_PAGE_CONTENT_HTML,
+      images: [],
       updatedAt: null
     };
   }
@@ -1536,6 +1752,31 @@ async function getProducts() {
     base.imageCardUrl = main && main.cardUrl ? main.cardUrl : row.imageUrl;
     return base;
   });
+}
+
+async function getDashboardSummary() {
+  const counts = await get(
+    `SELECT
+      (SELECT COUNT(*) FROM products) as productsCount,
+      (SELECT COUNT(*) FROM categories) as categoriesCount,
+      (SELECT COUNT(*) FROM orders) as ordersCount,
+      (SELECT COUNT(*) FROM product_images) as imagesCount`
+  );
+
+  let dbSizeBytes = 0;
+  try {
+    dbSizeBytes = fs.statSync(dbPath).size || 0;
+  } catch (_error) {
+    dbSizeBytes = 0;
+  }
+
+  return {
+    productsCount: Number(counts?.productsCount || 0),
+    categoriesCount: Number(counts?.categoriesCount || 0),
+    ordersCount: Number(counts?.ordersCount || 0),
+    imagesCount: Number(counts?.imagesCount || 0),
+    dbSizeBytes
+  };
 }
 
 async function getProductById(productId) {
@@ -1628,17 +1869,43 @@ async function createOrder({ customer, items, whatsappNumber }) {
   });
 
   const totalArs = orderItems.reduce((sum, item) => sum + item.subtotalArs, 0);
+  const customerName = normalizeText(customer?.name, 120);
+  const customerPhone = normalizeText(customer?.phone, 80);
+  const customerProvince = normalizeText(customer?.province, 80);
+  const customerCity = normalizeText(customer?.city, 80);
+  const deliveryType = normalizeText(customer?.deliveryType, 20).toLowerCase() === 'branch' ? 'branch' : 'home';
+  const customerAddress = normalizeText(customer?.address, 200);
+  const deliveryBranch = normalizeText(customer?.deliveryBranch || customer?.branch, 160);
+  const customerNotes = normalizeText(customer?.notes, 500);
+
+  if (!customerName || !customerPhone) {
+    throw new Error('Nombre y telefono son obligatorios.');
+  }
+  if (!customerProvince || !customerCity) {
+    throw new Error('Provincia y ciudad son obligatorias.');
+  }
+  if (deliveryType === 'home' && !customerAddress) {
+    throw new Error('Para envio a domicilio, ingresa direccion de entrega.');
+  }
+  if (deliveryType === 'branch' && !deliveryBranch) {
+    throw new Error('Para envio a sucursal, ingresa la sucursal de Correo Argentino.');
+  }
 
   await run('BEGIN TRANSACTION');
   try {
     const orderInsert = await run(
-      `INSERT INTO orders (customer_name, customer_phone, customer_address, notes, total_ars)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO orders (
+        customer_name, customer_phone, customer_province, customer_city, delivery_type, delivery_branch, customer_address, notes, total_ars
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        customer.name.trim(),
-        customer.phone.trim(),
-        customer.address ? customer.address.trim() : '',
-        customer.notes ? customer.notes.trim() : '',
+        customerName,
+        customerPhone,
+        customerProvince,
+        customerCity,
+        deliveryType,
+        deliveryBranch,
+        customerAddress,
+        customerNotes,
         totalArs
       ]
     );
@@ -1666,9 +1933,13 @@ async function createOrder({ customer, items, whatsappNumber }) {
 
     const order = {
       id: orderInsert.id,
-      customer_name: customer.name.trim(),
-      customer_phone: customer.phone.trim(),
-      customer_address: customer.address ? customer.address.trim() : '',
+      customer_name: customerName,
+      customer_phone: customerPhone,
+      customer_province: customerProvince,
+      customer_city: customerCity,
+      delivery_type: deliveryType,
+      delivery_branch: deliveryBranch,
+      customer_address: customerAddress,
       total_ars: totalArs,
       items: orderItems.map((item) => ({
         name: item.name,
@@ -1689,6 +1960,285 @@ async function createOrder({ customer, items, whatsappNumber }) {
       totalFormatted: formatCurrency(totalArs),
       whatsappUrl
     };
+  } catch (error) {
+    await run('ROLLBACK');
+    throw error;
+  }
+}
+
+function normalizeOrderItemsInput(itemsInput) {
+  let rawItems = itemsInput;
+  if (typeof itemsInput === 'string') {
+    const trimmed = itemsInput.trim();
+    if (!trimmed) return [];
+    try {
+      rawItems = JSON.parse(trimmed);
+    } catch (_error) {
+      throw new Error('El detalle de items no es un JSON valido.');
+    }
+  }
+
+  if (!Array.isArray(rawItems)) return [];
+
+  return rawItems
+    .map((item) => ({
+      productId: Number(item?.productId || 0),
+      productName: normalizeText(item?.productName || item?.name, 120),
+      unitPriceArs: Number(item?.unitPriceArs || item?.unitPrice || 0),
+      quantity: Number(item?.quantity || 0),
+      subtotalArs: Number(item?.subtotalArs || item?.subtotal || 0),
+      color: normalizeText(item?.color, 60),
+      size: normalizeText(item?.size, 60),
+      detailText: normalizeText(item?.detailText || item?.detail, 300)
+    }))
+    .filter((item) => item.productName && Number.isFinite(item.quantity) && item.quantity > 0)
+    .map((item) => {
+      const unit = Number.isFinite(item.unitPriceArs) ? Math.max(0, Math.round(item.unitPriceArs)) : 0;
+      const subtotalByQty = unit * Math.max(1, Math.round(item.quantity));
+      const subtotal = Number.isFinite(item.subtotalArs) && item.subtotalArs > 0 ? Math.round(item.subtotalArs) : subtotalByQty;
+      return {
+        ...item,
+        unitPriceArs: unit,
+        quantity: Math.max(1, Math.round(item.quantity)),
+        subtotalArs: Math.max(0, subtotal)
+      };
+    });
+}
+
+async function listOrdersAdmin() {
+  const rows = await all(
+    `SELECT
+      o.id,
+      o.customer_name as customerName,
+      o.customer_phone as customerPhone,
+      o.customer_province as customerProvince,
+      o.customer_city as customerCity,
+      o.delivery_type as deliveryType,
+      o.delivery_branch as deliveryBranch,
+      o.customer_address as customerAddress,
+      o.notes,
+      o.total_ars as totalArs,
+      o.created_at as createdAt,
+      COUNT(oi.id) as itemCount
+     FROM orders o
+     LEFT JOIN order_items oi ON oi.order_id = o.id
+     GROUP BY o.id
+     ORDER BY o.id DESC`
+  );
+
+  for (const row of rows) {
+    const items = await all(
+      `SELECT
+        product_id as productId,
+        product_name as productName,
+        unit_price_ars as unitPriceArs,
+        quantity,
+        subtotal_ars as subtotalArs,
+        color,
+        size,
+        detail_text as detailText
+       FROM order_items
+       WHERE order_id = ?
+       ORDER BY id ASC`,
+      [row.id]
+    );
+
+    row.itemsJson = JSON.stringify(items);
+    row.itemsPreview = items.map((item) => `${item.productName} x${item.quantity}`).join(' | ');
+  }
+
+  return rows;
+}
+
+async function createOrderAdmin({
+  customerName,
+  customerPhone,
+  customerProvince,
+  customerCity,
+  deliveryType,
+  deliveryBranch,
+  customerAddress,
+  notes,
+  totalArs,
+  itemsJson
+}) {
+  const normalizedCustomerName = normalizeText(customerName, 120);
+  const normalizedCustomerPhone = normalizeText(customerPhone, 80);
+  const normalizedCustomerProvince = normalizeText(customerProvince, 80);
+  const normalizedCustomerCity = normalizeText(customerCity, 80);
+  const normalizedDeliveryType = normalizeText(deliveryType, 20).toLowerCase() === 'branch' ? 'branch' : 'home';
+  const normalizedDeliveryBranch = normalizeText(deliveryBranch, 160);
+  const normalizedCustomerAddress = normalizeText(customerAddress, 200);
+  const normalizedNotes = normalizeText(notes, 500);
+  const normalizedItems = normalizeOrderItemsInput(itemsJson);
+
+  if (!normalizedCustomerName || !normalizedCustomerPhone) {
+    throw new Error('Nombre y telefono son obligatorios.');
+  }
+  if (!normalizedCustomerProvince || !normalizedCustomerCity) {
+    throw new Error('Provincia y ciudad son obligatorias.');
+  }
+  if (normalizedDeliveryType === 'home' && !normalizedCustomerAddress) {
+    throw new Error('Para envio a domicilio, ingresa direccion.');
+  }
+  if (normalizedDeliveryType === 'branch' && !normalizedDeliveryBranch) {
+    throw new Error('Para envio a sucursal, ingresa sucursal de Correo Argentino.');
+  }
+
+  const providedTotal = Number(totalArs);
+  const computedTotal = normalizedItems.reduce((sum, item) => sum + item.subtotalArs, 0);
+  const nextTotalArs =
+    normalizedItems.length > 0
+      ? computedTotal
+      : Number.isFinite(providedTotal) && providedTotal >= 0
+        ? Math.round(providedTotal)
+        : 0;
+
+  await run('BEGIN TRANSACTION');
+  try {
+    const inserted = await run(
+      `INSERT INTO orders (
+        customer_name, customer_phone, customer_province, customer_city, delivery_type, delivery_branch, customer_address, notes, total_ars
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        normalizedCustomerName,
+        normalizedCustomerPhone,
+        normalizedCustomerProvince,
+        normalizedCustomerCity,
+        normalizedDeliveryType,
+        normalizedDeliveryBranch,
+        normalizedCustomerAddress,
+        normalizedNotes,
+        nextTotalArs
+      ]
+    );
+
+    for (const item of normalizedItems) {
+      await run(
+        `INSERT INTO order_items (
+          order_id, product_id, product_name, unit_price_ars, quantity, subtotal_ars, color, size, detail_text
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          inserted.id,
+          Number.isInteger(item.productId) && item.productId > 0 ? item.productId : 0,
+          item.productName,
+          item.unitPriceArs,
+          item.quantity,
+          item.subtotalArs,
+          item.color,
+          item.size,
+          item.detailText
+        ]
+      );
+    }
+
+    await run('COMMIT');
+    const rows = await listOrdersAdmin();
+    return rows.find((row) => Number(row.id) === Number(inserted.id)) || null;
+  } catch (error) {
+    await run('ROLLBACK');
+    throw error;
+  }
+}
+
+async function updateOrderAdmin(
+  orderId,
+  { customerName, customerPhone, customerProvince, customerCity, deliveryType, deliveryBranch, customerAddress, notes, totalArs, itemsJson }
+) {
+  const current = await get('SELECT * FROM orders WHERE id = ?', [orderId]);
+  if (!current) return null;
+
+  const normalizedCustomerName = normalizeText(customerName ?? current.customer_name, 120);
+  const normalizedCustomerPhone = normalizeText(customerPhone ?? current.customer_phone, 80);
+  const normalizedCustomerProvince = normalizeText(customerProvince ?? current.customer_province, 80);
+  const normalizedCustomerCity = normalizeText(customerCity ?? current.customer_city, 80);
+  const normalizedDeliveryType = normalizeText(deliveryType ?? current.delivery_type, 20).toLowerCase() === 'branch' ? 'branch' : 'home';
+  const normalizedDeliveryBranch = normalizeText(deliveryBranch ?? current.delivery_branch, 160);
+  const normalizedCustomerAddress = normalizeText(customerAddress ?? current.customer_address, 200);
+  const normalizedNotes = normalizeText(notes ?? current.notes, 500);
+
+  if (!normalizedCustomerName || !normalizedCustomerPhone) {
+    throw new Error('Nombre y telefono son obligatorios.');
+  }
+  if (!normalizedCustomerProvince || !normalizedCustomerCity) {
+    throw new Error('Provincia y ciudad son obligatorias.');
+  }
+  if (normalizedDeliveryType === 'home' && !normalizedCustomerAddress) {
+    throw new Error('Para envio a domicilio, ingresa direccion.');
+  }
+  if (normalizedDeliveryType === 'branch' && !normalizedDeliveryBranch) {
+    throw new Error('Para envio a sucursal, ingresa sucursal de Correo Argentino.');
+  }
+
+  const itemsWasProvided = itemsJson !== undefined;
+  const normalizedItems = itemsWasProvided ? normalizeOrderItemsInput(itemsJson) : null;
+  const providedTotal = Number(totalArs);
+  let nextTotalArs = Number(current.total_ars || 0);
+
+  if (itemsWasProvided) {
+    nextTotalArs = normalizedItems.reduce((sum, item) => sum + item.subtotalArs, 0);
+  } else if (totalArs !== undefined && Number.isFinite(providedTotal) && providedTotal >= 0) {
+    nextTotalArs = Math.round(providedTotal);
+  }
+
+  await run('BEGIN TRANSACTION');
+  try {
+    await run(
+      `UPDATE orders
+       SET customer_name = ?, customer_phone = ?, customer_province = ?, customer_city = ?, delivery_type = ?, delivery_branch = ?, customer_address = ?, notes = ?, total_ars = ?
+       WHERE id = ?`,
+      [
+        normalizedCustomerName,
+        normalizedCustomerPhone,
+        normalizedCustomerProvince,
+        normalizedCustomerCity,
+        normalizedDeliveryType,
+        normalizedDeliveryBranch,
+        normalizedCustomerAddress,
+        normalizedNotes,
+        nextTotalArs,
+        orderId
+      ]
+    );
+
+    if (itemsWasProvided) {
+      await run('DELETE FROM order_items WHERE order_id = ?', [orderId]);
+      for (const item of normalizedItems) {
+        await run(
+          `INSERT INTO order_items (
+            order_id, product_id, product_name, unit_price_ars, quantity, subtotal_ars, color, size, detail_text
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            orderId,
+            Number.isInteger(item.productId) && item.productId > 0 ? item.productId : 0,
+            item.productName,
+            item.unitPriceArs,
+            item.quantity,
+            item.subtotalArs,
+            item.color,
+            item.size,
+            item.detailText
+          ]
+        );
+      }
+    }
+
+    await run('COMMIT');
+    const rows = await listOrdersAdmin();
+    return rows.find((row) => Number(row.id) === Number(orderId)) || null;
+  } catch (error) {
+    await run('ROLLBACK');
+    throw error;
+  }
+}
+
+async function deleteOrderAdmin(orderId) {
+  await run('BEGIN TRANSACTION');
+  try {
+    await run('DELETE FROM order_items WHERE order_id = ?', [orderId]);
+    const result = await run('DELETE FROM orders WHERE id = ?', [orderId]);
+    await run('COMMIT');
+    return result.changes > 0;
   } catch (error) {
     await run('ROLLBACK');
     throw error;
@@ -2664,30 +3214,36 @@ async function deleteUser(userId) {
 
 async function listCategories() {
   return all(
-    `SELECT id, name, slug
+    `SELECT id, name, slug, icon
      FROM categories
      ORDER BY name ASC`
   );
 }
 
-async function createCategory({ name, slug }) {
+async function createCategory({ name, slug, icon }) {
   const normalizedName = normalizeText(name, 80);
   const normalizedSlug = normalizeText(slug, 80) || slugify(normalizedName);
+  const normalizedIcon = normalizeText(icon, 40).toLowerCase() || 'tag';
   if (!normalizedName || !normalizedSlug) {
     throw new Error('Nombre de categoría inválido.');
   }
 
-  const result = await run('INSERT INTO categories (name, slug) VALUES (?, ?)', [normalizedName, normalizedSlug]);
-  return get('SELECT id, name, slug FROM categories WHERE id = ?', [result.id]);
+  const result = await run('INSERT INTO categories (name, slug, icon) VALUES (?, ?, ?)', [
+    normalizedName,
+    normalizedSlug,
+    normalizedIcon
+  ]);
+  return get('SELECT id, name, slug, icon FROM categories WHERE id = ?', [result.id]);
 }
 
-async function updateCategory(categoryId, { name, slug }) {
+async function updateCategory(categoryId, { name, slug, icon }) {
   const current = await get('SELECT * FROM categories WHERE id = ?', [categoryId]);
   if (!current) return null;
   const nextName = normalizeText(name ?? current.name, 80);
   const nextSlug = normalizeText(slug ?? current.slug, 80) || slugify(nextName);
-  await run('UPDATE categories SET name = ?, slug = ? WHERE id = ?', [nextName, nextSlug, categoryId]);
-  return get('SELECT id, name, slug FROM categories WHERE id = ?', [categoryId]);
+  const nextIcon = normalizeText(icon ?? current.icon, 40).toLowerCase() || 'tag';
+  await run('UPDATE categories SET name = ?, slug = ?, icon = ? WHERE id = ?', [nextName, nextSlug, nextIcon, categoryId]);
+  return get('SELECT id, name, slug, icon FROM categories WHERE id = ?', [categoryId]);
 }
 
 async function deleteCategory(categoryId) {
@@ -2805,12 +3361,21 @@ async function setProductMainImage(productId, imageUrl) {
 async function createProductImage({ productId, url, altText = '', sortOrder = 0 }) {
   const normalizedProductId = Number(productId);
   const normalizedUrl = normalizeText(url, 1000);
-  const normalizedAltText = normalizeText(altText, 160);
+  const requestedAltText = normalizeText(altText, 160);
   const normalizedSortOrder = Number.isInteger(Number(sortOrder)) ? Number(sortOrder) : 0;
 
   if (!Number.isInteger(normalizedProductId) || normalizedProductId <= 0 || !normalizedUrl) {
     throw new Error('Imagen de producto inválida.');
   }
+
+  const product = await getProductMetaForAlt(normalizedProductId);
+  if (!product) {
+    throw new Error('Producto no encontrado para asociar la imagen.');
+  }
+
+  const normalizedAltText = shouldAutofillImageAlt(requestedAltText)
+    ? buildProductImageAlt(product, normalizedUrl)
+    : requestedAltText;
 
   const result = await run(
     `INSERT INTO product_images (product_id, url, alt_text, sort_order)
@@ -2834,8 +3399,13 @@ async function updateProductImage(imageId, { productId, url, altText, sortOrder 
   const previousProductId = Number(current.product_id);
   const nextProductId = productId === undefined ? Number(current.product_id) : Number(productId);
   const nextUrl = normalizeText(url ?? current.url, 1000);
-  const nextAltText = normalizeText(altText ?? current.alt_text, 160);
+  const requestedAltText = normalizeText(altText ?? current.alt_text, 160);
   const nextSortOrder = sortOrder === undefined ? Number(current.sort_order) : Number(sortOrder);
+  const nextProduct = await getProductMetaForAlt(nextProductId);
+  if (!nextProduct) throw new Error('Producto no encontrado para la imagen.');
+  const nextAltText = shouldAutofillImageAlt(requestedAltText)
+    ? buildProductImageAlt(nextProduct, nextUrl)
+    : requestedAltText;
 
   await run(
     `UPDATE product_images
@@ -2845,8 +3415,10 @@ async function updateProductImage(imageId, { productId, url, altText, sortOrder 
   );
 
   await syncProductMainImage(nextProductId);
+  await refreshProductImageAltTexts(nextProductId, nextProduct);
   if (previousProductId !== nextProductId) {
     await syncProductMainImage(previousProductId);
+    await refreshProductImageAltTexts(previousProductId);
   }
 
   return get(
@@ -2865,57 +3437,229 @@ async function deleteProductImage(imageId) {
   return result.changes > 0;
 }
 
+async function listPageImages() {
+  return all(
+    `SELECT
+      id,
+      page_id as pageId,
+      url,
+      alt_text as altText,
+      sort_order as sortOrder
+     FROM page_images
+     ORDER BY page_id ASC, sort_order ASC, id ASC`
+  );
+}
+
+async function getPageImageById(imageId) {
+  return get(
+    `SELECT
+      id,
+      page_id as pageId,
+      url,
+      alt_text as altText,
+      sort_order as sortOrder
+     FROM page_images
+     WHERE id = ?`,
+    [imageId]
+  );
+}
+
+async function listPageImagesByPageId(pageId) {
+  return all(
+    `SELECT
+      id,
+      page_id as pageId,
+      url,
+      alt_text as altText,
+      sort_order as sortOrder
+     FROM page_images
+     WHERE page_id = ?
+     ORDER BY sort_order ASC, id ASC`,
+    [pageId]
+  );
+}
+
+async function syncPageMainImage(pageId) {
+  const normalizedPageId = Number(pageId);
+  if (!Number.isInteger(normalizedPageId) || normalizedPageId <= 0) return;
+
+  const firstImage = await get(
+    `SELECT url
+     FROM page_images
+     WHERE page_id = ?
+     ORDER BY sort_order ASC, id ASC
+     LIMIT 1`,
+    [normalizedPageId]
+  );
+
+  if (firstImage && firstImage.url) {
+    await run('UPDATE pages SET image_url = ? WHERE id = ?', [firstImage.url, normalizedPageId]);
+  }
+}
+
+async function setPageMainImage(pageId, imageUrl) {
+  const normalizedPageId = Number(pageId);
+  const normalizedImageUrl = normalizeText(imageUrl, 1000);
+
+  if (!Number.isInteger(normalizedPageId) || normalizedPageId <= 0 || !normalizedImageUrl) {
+    throw new Error('Imagen principal invalida.');
+  }
+
+  const current = await get('SELECT id FROM pages WHERE id = ?', [normalizedPageId]);
+  if (!current) return null;
+
+  const images = await all(
+    `SELECT id, url, sort_order as sortOrder
+     FROM page_images
+     WHERE page_id = ?
+     ORDER BY sort_order ASC, id ASC`,
+    [normalizedPageId]
+  );
+
+  await run('BEGIN TRANSACTION');
+  try {
+    const selectedIndex = images.findIndex((img) => img.url === normalizedImageUrl);
+    if (selectedIndex >= 0) {
+      const ordered = [images[selectedIndex], ...images.filter((_img, index) => index !== selectedIndex)];
+      for (let index = 0; index < ordered.length; index += 1) {
+        const image = ordered[index];
+        if (Number(image.sortOrder) !== index) {
+          await run('UPDATE page_images SET sort_order = ? WHERE id = ?', [index, image.id]);
+        }
+      }
+    }
+
+    await run('UPDATE pages SET image_url = ? WHERE id = ?', [normalizedImageUrl, normalizedPageId]);
+    await run('COMMIT');
+  } catch (error) {
+    await run('ROLLBACK');
+    throw error;
+  }
+
+  return get(
+    `SELECT id, slug, title, image_url as imageUrl, content_html as contentHtml, updated_at as updatedAt
+     FROM pages WHERE id = ?`,
+    [normalizedPageId]
+  );
+}
+
+async function createPageImage({ pageId, url, altText = '', sortOrder = 0 }) {
+  const normalizedPageId = Number(pageId);
+  const normalizedUrl = normalizeText(url, 1000);
+  const normalizedAltText = normalizeText(altText, 160);
+  const normalizedSortOrder = Number.isInteger(Number(sortOrder)) ? Number(sortOrder) : 0;
+
+  if (!Number.isInteger(normalizedPageId) || normalizedPageId <= 0 || !normalizedUrl) {
+    throw new Error('Imagen de pagina invalida.');
+  }
+
+  const result = await run(
+    `INSERT INTO page_images (page_id, url, alt_text, sort_order)
+     VALUES (?, ?, ?, ?)`,
+    [normalizedPageId, normalizedUrl, normalizedAltText, normalizedSortOrder]
+  );
+
+  await syncPageMainImage(normalizedPageId);
+
+  return get(
+    `SELECT id, page_id as pageId, url, alt_text as altText, sort_order as sortOrder
+     FROM page_images WHERE id = ?`,
+    [result.id]
+  );
+}
+
+async function updatePageImage(imageId, { pageId, url, altText, sortOrder }) {
+  const current = await get('SELECT * FROM page_images WHERE id = ?', [imageId]);
+  if (!current) return null;
+
+  const previousPageId = Number(current.page_id);
+  const nextPageId = pageId === undefined ? Number(current.page_id) : Number(pageId);
+  const nextUrl = normalizeText(url ?? current.url, 1000);
+  const nextAltText = normalizeText(altText ?? current.alt_text, 160);
+  const nextSortOrder = sortOrder === undefined ? Number(current.sort_order) : Number(sortOrder);
+
+  await run(
+    `UPDATE page_images
+     SET page_id = ?, url = ?, alt_text = ?, sort_order = ?
+     WHERE id = ?`,
+    [nextPageId, nextUrl, nextAltText, nextSortOrder, imageId]
+  );
+
+  await syncPageMainImage(nextPageId);
+  if (previousPageId !== nextPageId) {
+    await syncPageMainImage(previousPageId);
+  }
+
+  return get(
+    `SELECT id, page_id as pageId, url, alt_text as altText, sort_order as sortOrder
+     FROM page_images WHERE id = ?`,
+    [imageId]
+  );
+}
+
+async function deletePageImage(imageId) {
+  const current = await get('SELECT page_id as pageId FROM page_images WHERE id = ?', [imageId]);
+  const result = await run('DELETE FROM page_images WHERE id = ?', [imageId]);
+  if (result.changes > 0 && current && current.pageId) {
+    await syncPageMainImage(current.pageId);
+  }
+  return result.changes > 0;
+}
+
 async function listPages() {
   return all(
-    `SELECT id, slug, title, content_html as contentHtml, updated_at as updatedAt
+    `SELECT id, slug, title, image_url as imageUrl, content_html as contentHtml, updated_at as updatedAt
      FROM pages
      ORDER BY slug ASC`
   );
 }
 
-async function createPage({ slug, title, contentHtml }) {
+async function createPage({ slug, title, contentHtml, imageUrl = '' }) {
   const normalizedSlug = normalizeText(slug, 80).toLowerCase();
   const normalizedTitle = normalizeText(title, 160);
+  const normalizedImageUrl = normalizeText(imageUrl, 1000);
   const normalizedContent = String(contentHtml || '').trim();
   if (!normalizedSlug || !normalizedTitle || !normalizedContent) {
     throw new Error('Datos de página inválidos.');
   }
 
   const result = await run(
-    `INSERT INTO pages (slug, title, content_html)
-     VALUES (?, ?, ?)`,
-    [normalizedSlug, normalizedTitle, normalizedContent]
+    `INSERT INTO pages (slug, title, image_url, content_html)
+     VALUES (?, ?, ?, ?)`,
+    [normalizedSlug, normalizedTitle, normalizedImageUrl, normalizedContent]
   );
   return get(
-    `SELECT id, slug, title, content_html as contentHtml, updated_at as updatedAt
+    `SELECT id, slug, title, image_url as imageUrl, content_html as contentHtml, updated_at as updatedAt
      FROM pages WHERE id = ?`,
     [result.id]
   );
 }
 
-async function updatePage(pageId, { slug, title, contentHtml }) {
+async function updatePage(pageId, { slug, title, contentHtml, imageUrl }) {
   const current = await get('SELECT * FROM pages WHERE id = ?', [pageId]);
   if (!current) return null;
 
   const nextSlug = normalizeText(slug ?? current.slug, 80).toLowerCase();
   const nextTitle = normalizeText(title ?? current.title, 160);
+  const nextImageUrl = normalizeText(imageUrl ?? current.image_url, 1000);
   const nextContent = String(contentHtml ?? current.content_html).trim();
 
   await run(
     `UPDATE pages
-     SET slug = ?, title = ?, content_html = ?, updated_at = datetime('now', 'localtime')
+     SET slug = ?, title = ?, image_url = ?, content_html = ?, updated_at = datetime('now', 'localtime')
      WHERE id = ?`,
-    [nextSlug, nextTitle, nextContent, pageId]
+    [nextSlug, nextTitle, nextImageUrl, nextContent, pageId]
   );
 
   return get(
-    `SELECT id, slug, title, content_html as contentHtml, updated_at as updatedAt
+    `SELECT id, slug, title, image_url as imageUrl, content_html as contentHtml, updated_at as updatedAt
      FROM pages WHERE id = ?`,
     [pageId]
   );
 }
 
 async function deletePage(pageId) {
+  await run('DELETE FROM page_images WHERE page_id = ?', [pageId]);
   const result = await run('DELETE FROM pages WHERE id = ?', [pageId]);
   return result.changes > 0;
 }
@@ -2952,6 +3696,12 @@ async function createProductAdmin({ name, category, priceArs, description, image
   );
 
   await ensureCategoriesAndImagesFromProducts();
+  await refreshProductImageAltTexts(result.id, {
+    id: result.id,
+    name: normalizedName,
+    category: normalizedCategory,
+    description: normalizedDescription
+  });
   return setProductMainImage(result.id, normalizedImageUrl);
 }
 
@@ -2977,6 +3727,12 @@ async function updateProductAdmin(productId, { name, category, priceArs, descrip
   );
 
   await ensureCategoriesAndImagesFromProducts();
+  await refreshProductImageAltTexts(productId, {
+    id: productId,
+    name: nextName,
+    category: nextCategory,
+    description: nextDescription
+  });
   return setProductMainImage(productId, nextImageUrl);
 }
 
@@ -2987,11 +3743,134 @@ async function deleteProductAdmin(productId) {
   return result.changes > 0;
 }
 
+function parseSecurityPatterns(rawValue) {
+  return String(rawValue || '')
+    .split(',')
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean)
+    .slice(0, 50);
+}
+
+async function getSecuritySettings() {
+  const row = await get(
+    `SELECT
+      security_enabled as enabled,
+      security_headers_enabled as headersEnabled,
+      security_rate_limit_enabled as rateLimitEnabled,
+      security_rate_limit_window_sec as rateLimitWindowSec,
+      security_rate_limit_max as rateLimitMax,
+      security_order_rate_limit_max as orderRateLimitMax,
+      security_block_bad_ua_enabled as blockBadUaEnabled,
+      security_blocked_ua_patterns as blockedUaPatterns,
+      security_honeypot_enabled as honeypotEnabled,
+      security_honeypot_field as honeypotField
+     FROM settings
+     WHERE id = 1`
+  );
+
+  if (!row) {
+    return {
+      enabled: 1,
+      headersEnabled: 1,
+      rateLimitEnabled: 1,
+      rateLimitWindowSec: 60,
+      rateLimitMax: 120,
+      orderRateLimitMax: 20,
+      blockBadUaEnabled: 1,
+      blockedUaPatterns: 'bot,crawler,scrapy,python-requests,curl,wget,httpclient',
+      honeypotEnabled: 1,
+      honeypotField: 'website'
+    };
+  }
+
+  return {
+    enabled: Number(row.enabled ?? 1) ? 1 : 0,
+    headersEnabled: Number(row.headersEnabled ?? 1) ? 1 : 0,
+    rateLimitEnabled: Number(row.rateLimitEnabled ?? 1) ? 1 : 0,
+    rateLimitWindowSec: Math.max(10, Math.min(3600, Number(row.rateLimitWindowSec || 60))),
+    rateLimitMax: Math.max(10, Math.min(5000, Number(row.rateLimitMax || 120))),
+    orderRateLimitMax: Math.max(1, Math.min(1000, Number(row.orderRateLimitMax || 20))),
+    blockBadUaEnabled: Number(row.blockBadUaEnabled ?? 1) ? 1 : 0,
+    blockedUaPatterns: parseSecurityPatterns(row.blockedUaPatterns).join(','),
+    honeypotEnabled: Number(row.honeypotEnabled ?? 1) ? 1 : 0,
+    honeypotField: normalizeText(row.honeypotField || 'website', 60).toLowerCase() || 'website'
+  };
+}
+
+async function updateSecuritySettings(input = {}) {
+  const current = await getSecuritySettings();
+
+  const next = {
+    enabled: input.enabled === undefined ? current.enabled : Number(input.enabled) ? 1 : 0,
+    headersEnabled: input.headersEnabled === undefined ? current.headersEnabled : Number(input.headersEnabled) ? 1 : 0,
+    rateLimitEnabled: input.rateLimitEnabled === undefined ? current.rateLimitEnabled : Number(input.rateLimitEnabled) ? 1 : 0,
+    rateLimitWindowSec:
+      input.rateLimitWindowSec === undefined
+        ? current.rateLimitWindowSec
+        : Math.max(10, Math.min(3600, Number(input.rateLimitWindowSec || 60))),
+    rateLimitMax:
+      input.rateLimitMax === undefined
+        ? current.rateLimitMax
+        : Math.max(10, Math.min(5000, Number(input.rateLimitMax || 120))),
+    orderRateLimitMax:
+      input.orderRateLimitMax === undefined
+        ? current.orderRateLimitMax
+        : Math.max(1, Math.min(1000, Number(input.orderRateLimitMax || 20))),
+    blockBadUaEnabled:
+      input.blockBadUaEnabled === undefined ? current.blockBadUaEnabled : Number(input.blockBadUaEnabled) ? 1 : 0,
+    blockedUaPatterns:
+      input.blockedUaPatterns === undefined
+        ? current.blockedUaPatterns
+        : parseSecurityPatterns(input.blockedUaPatterns).join(','),
+    honeypotEnabled: input.honeypotEnabled === undefined ? current.honeypotEnabled : Number(input.honeypotEnabled) ? 1 : 0,
+    honeypotField:
+      input.honeypotField === undefined
+        ? current.honeypotField
+        : normalizeText(input.honeypotField, 60).toLowerCase() || 'website'
+  };
+
+  await run(
+    `UPDATE settings
+     SET
+       security_enabled = ?,
+       security_headers_enabled = ?,
+       security_rate_limit_enabled = ?,
+       security_rate_limit_window_sec = ?,
+       security_rate_limit_max = ?,
+       security_order_rate_limit_max = ?,
+       security_block_bad_ua_enabled = ?,
+       security_blocked_ua_patterns = ?,
+       security_honeypot_enabled = ?,
+       security_honeypot_field = ?,
+       updated_at = datetime('now', 'localtime')
+     WHERE id = 1`,
+    [
+      next.enabled,
+      next.headersEnabled,
+      next.rateLimitEnabled,
+      next.rateLimitWindowSec,
+      next.rateLimitMax,
+      next.orderRateLimitMax,
+      next.blockBadUaEnabled,
+      next.blockedUaPatterns,
+      next.honeypotEnabled,
+      next.honeypotField
+    ]
+  );
+
+  return getSecuritySettings();
+}
+
 module.exports = {
   initDb,
   getProducts,
   getProductById,
+  getDashboardSummary,
   createOrder,
+  listOrdersAdmin,
+  createOrderAdmin,
+  updateOrderAdmin,
+  deleteOrderAdmin,
   getPageBySlug,
   getSettings,
   listSettings,
@@ -3012,6 +3891,13 @@ module.exports = {
   updateProductImage,
   deleteProductImage,
   setProductMainImage,
+  listPageImages,
+  getPageImageById,
+  listPageImagesByPageId,
+  createPageImage,
+  updatePageImage,
+  deletePageImage,
+  setPageMainImage,
   listPages,
   createPage,
   updatePage,
@@ -3019,5 +3905,8 @@ module.exports = {
   listProductsAdmin,
   createProductAdmin,
   updateProductAdmin,
-  deleteProductAdmin
+  deleteProductAdmin,
+  regenerateAllProductImageAltTexts,
+  getSecuritySettings,
+  updateSecuritySettings
 };

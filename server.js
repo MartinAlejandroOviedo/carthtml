@@ -1,6 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const multer = require('multer');
 const sharp = require('sharp');
 const { buildSeoMetaTags, buildProductSocialMetaTags, injectSocialMetaIntoHtml } = require('./mod/social-meta');
@@ -8,7 +9,12 @@ const {
   initDb,
   getProducts,
   getProductById,
+  getDashboardSummary,
   createOrder,
+  listOrdersAdmin,
+  createOrderAdmin,
+  updateOrderAdmin,
+  deleteOrderAdmin,
   getPageBySlug,
   getSettings,
   listSettings,
@@ -29,6 +35,13 @@ const {
   updateProductImage,
   deleteProductImage,
   setProductMainImage,
+  listPageImages,
+  getPageImageById,
+  listPageImagesByPageId,
+  createPageImage,
+  updatePageImage,
+  deletePageImage,
+  setPageMainImage,
   listPages,
   createPage,
   updatePage,
@@ -36,7 +49,10 @@ const {
   listProductsAdmin,
   createProductAdmin,
   updateProductAdmin,
-  deleteProductAdmin
+  deleteProductAdmin,
+  regenerateAllProductImageAltTexts,
+  getSecuritySettings,
+  updateSecuritySettings
 } = require('./src/db');
 
 const app = express();
@@ -51,6 +67,11 @@ const IMAGE_VARIANTS = {
 
 fs.mkdirSync(uploadDir, { recursive: true, mode: 0o755 });
 fs.mkdirSync(typedImagesDir, { recursive: true, mode: 0o755 });
+
+let cachedSecuritySettings = null;
+let cachedSecuritySettingsAt = 0;
+const SECURITY_SETTINGS_CACHE_MS = 5000;
+const rateLimitBuckets = new Map();
 
 function parseProductId(raw) {
   const value = Number(raw);
@@ -82,6 +103,82 @@ function applyTextTemplate(value, vars = {}) {
       return vars[k] === undefined || vars[k] === null ? '' : String(vars[k]);
     })
     .trim();
+}
+
+function parseClientIp(req) {
+  const forwarded = String(req.get('x-forwarded-for') || '')
+    .split(',')[0]
+    .trim();
+  return forwarded || req.ip || req.socket?.remoteAddress || 'unknown';
+}
+
+async function loadSecuritySettings(force = false) {
+  const now = Date.now();
+  if (!force && cachedSecuritySettings && now - cachedSecuritySettingsAt < SECURITY_SETTINGS_CACHE_MS) {
+    return cachedSecuritySettings;
+  }
+  const settings = await getSecuritySettings().catch(() => null);
+  cachedSecuritySettings = settings || {
+    enabled: 1,
+    headersEnabled: 1,
+    rateLimitEnabled: 1,
+    rateLimitWindowSec: 60,
+    rateLimitMax: 120,
+    orderRateLimitMax: 20,
+    blockBadUaEnabled: 1,
+    blockedUaPatterns: 'bot,crawler,scrapy,python-requests,curl,wget,httpclient',
+    honeypotEnabled: 1,
+    honeypotField: 'website'
+  };
+  cachedSecuritySettingsAt = now;
+  return cachedSecuritySettings;
+}
+
+function getRateBucketState(key, windowMs) {
+  const now = Date.now();
+  const current = rateLimitBuckets.get(key);
+  if (!current || now - current.startedAt >= windowMs) {
+    const next = { startedAt: now, count: 0 };
+    rateLimitBuckets.set(key, next);
+    return next;
+  }
+  return current;
+}
+
+function checkRateLimit({ scope, req, maxRequests, windowSec }) {
+  const safeMax = Math.max(1, Number(maxRequests || 1));
+  const safeWindowSec = Math.max(1, Number(windowSec || 60));
+  const windowMs = safeWindowSec * 1000;
+  const ip = parseClientIp(req);
+  const key = `${scope}:${ip}`;
+  const bucket = getRateBucketState(key, windowMs);
+  bucket.count += 1;
+  const remaining = Math.max(0, safeMax - bucket.count);
+  const resetMs = Math.max(0, windowMs - (Date.now() - bucket.startedAt));
+  return {
+    allowed: bucket.count <= safeMax,
+    remaining,
+    resetMs
+  };
+}
+
+function applySecurityHeaders(res) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-site');
+}
+
+function isBlockedUserAgent(uaRaw, blockedPatternsRaw) {
+  const ua = String(uaRaw || '').toLowerCase();
+  if (!ua) return false;
+  const patterns = String(blockedPatternsRaw || '')
+    .split(',')
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+  if (!patterns.length) return false;
+  return patterns.some((pattern) => ua.includes(pattern));
 }
 
 function buildSitemapXml({ baseUrl, products = [] }) {
@@ -210,6 +307,25 @@ function variantFileName(originalFileName, variant) {
   return `${base}-${variant}.webp`;
 }
 
+async function getDirSizeBytes(dirPath) {
+  let total = 0;
+  try {
+    const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+      const full = path.join(dirPath, entry.name);
+      if (entry.isDirectory()) {
+        total += await getDirSizeBytes(full);
+      } else if (entry.isFile()) {
+        const stat = await fs.promises.stat(full);
+        total += Number(stat.size || 0);
+      }
+    }
+  } catch (_error) {
+    return total;
+  }
+  return total;
+}
+
 async function generateImageVariants(file, uploadContext) {
   if (!file || !file.path || !file.filename) {
     throw new Error('Archivo inválido para generar variantes.');
@@ -313,6 +429,57 @@ const imageUpload = multer({
 });
 
 app.use(express.json());
+
+app.use(async (req, res, next) => {
+  const security = await loadSecuritySettings();
+  req.runtimeSecurity = security;
+
+  if (Number(security?.enabled ?? 1) !== 1) {
+    return next();
+  }
+
+  if (Number(security?.headersEnabled ?? 1) === 1) {
+    applySecurityHeaders(res);
+  }
+
+  if (
+    Number(security?.blockBadUaEnabled ?? 1) === 1 &&
+    req.path.startsWith('/api/') &&
+    !req.path.startsWith('/api/panel/')
+  ) {
+    if (isBlockedUserAgent(req.get('user-agent'), security?.blockedUaPatterns)) {
+      return res.status(403).json({ error: 'Solicitud bloqueada por politica de seguridad.' });
+    }
+  }
+
+  if (Number(security?.rateLimitEnabled ?? 1) === 1) {
+    if (req.method === 'GET' && req.path.startsWith('/api/products')) {
+      const decision = checkRateLimit({
+        scope: 'api-products',
+        req,
+        maxRequests: security.rateLimitMax,
+        windowSec: security.rateLimitWindowSec
+      });
+      if (!decision.allowed) {
+        return res.status(429).json({ error: 'Demasiadas solicitudes de productos. Intenta nuevamente en unos segundos.' });
+      }
+    }
+
+    if (req.method === 'POST' && req.path === '/api/orders') {
+      const decision = checkRateLimit({
+        scope: 'api-orders',
+        req,
+        maxRequests: security.orderRateLimitMax,
+        windowSec: security.rateLimitWindowSec
+      });
+      if (!decision.allowed) {
+        return res.status(429).json({ error: 'Demasiados intentos de crear pedido. Espera antes de reintentar.' });
+      }
+    }
+  }
+
+  return next();
+});
 
 function buildSeoModulesFromSettings(settings) {
   const modules = {
@@ -486,9 +653,15 @@ app.get('/help.html', async (req, res, next) => {
       const title = page?.title || 'Ayuda';
       const description = page?.contentHtml || 'Guia para armar pedidos prolijos y cerrarlos por WhatsApp.';
       const canonicalUrl = `${baseUrl}/help.html`;
+      const pageImage =
+        page?.images?.[0]?.sliderUrl ||
+        page?.images?.[0]?.url ||
+        page?.imageUrl ||
+        '';
       return buildSeoMetaTags({
         storeName,
         canonicalUrl,
+        imageUrl: pageImage,
         baseUrl,
         modules: seoModules,
         defaults: seoDefaults,
@@ -514,9 +687,15 @@ app.get(['/security.html', '/seguridad.html'], async (req, res, next) => {
       const page = await getPageBySlug('security').catch(() => null);
       const title = page?.title || 'Seguridad';
       const canonicalUrl = `${baseUrl}/security.html`;
+      const pageImage =
+        page?.images?.[0]?.sliderUrl ||
+        page?.images?.[0]?.url ||
+        page?.imageUrl ||
+        '';
       return buildSeoMetaTags({
         storeName,
         canonicalUrl,
+        imageUrl: pageImage,
         baseUrl,
         modules: seoModules,
         defaults: seoDefaults,
@@ -681,6 +860,14 @@ app.get('/api/products/:id', async (req, res) => {
 app.post('/api/orders', async (req, res) => {
   try {
     const { customer, items } = req.body;
+    const security = req.runtimeSecurity || (await loadSecuritySettings());
+    if (Number(security?.enabled ?? 1) === 1 && Number(security?.honeypotEnabled ?? 1) === 1) {
+      const hpField = String(security?.honeypotField || 'website').trim() || 'website';
+      const trapValue = String(customer?.[hpField] ?? req.body?.[hpField] ?? '').trim();
+      if (trapValue) {
+        return res.status(400).json({ error: 'Solicitud invalida.' });
+      }
+    }
 
     if (!customer || !customer.name || !customer.phone || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'Datos de pedido inválidos.' });
@@ -726,6 +913,64 @@ app.post('/api/panel/login', async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({ error: 'No se pudo iniciar sesion.' });
+  }
+});
+
+app.get('/api/panel/dashboard-summary', async (_req, res) => {
+  try {
+    const dbSummary = await getDashboardSummary();
+    const uploadsSizeBytes = await getDirSizeBytes(uploadDir);
+
+    const memoryTotalBytes = Number(os.totalmem() || 0);
+    const memoryFreeBytes = Number(os.freemem() || 0);
+    const memoryUsedBytes = Math.max(0, memoryTotalBytes - memoryFreeBytes);
+    const cpuCores = Array.isArray(os.cpus()) ? os.cpus().length : 0;
+    const load = Array.isArray(os.loadavg()) ? os.loadavg() : [0, 0, 0];
+    const cpuLoadPercent = cpuCores > 0 ? Math.min(100, (Number(load[0] || 0) / cpuCores) * 100) : 0;
+
+    let disk = null;
+    try {
+      if (typeof fs.promises.statfs === 'function') {
+        const statfs = await fs.promises.statfs(uploadDir);
+        const blockSize = Number(statfs.bsize || statfs.frsize || 0);
+        const totalBytes = Number(statfs.blocks || 0) * blockSize;
+        const freeBytes = Number(statfs.bavail || statfs.bfree || 0) * blockSize;
+        const usedBytes = Math.max(0, totalBytes - freeBytes);
+        disk = { totalBytes, freeBytes, usedBytes };
+      }
+    } catch (_error) {
+      disk = null;
+    }
+
+    return res.json({
+      counts: {
+        products: dbSummary.productsCount,
+        categories: dbSummary.categoriesCount,
+        orders: dbSummary.ordersCount,
+        images: dbSummary.imagesCount
+      },
+      storage: {
+        uploadsBytes: uploadsSizeBytes,
+        dbBytes: dbSummary.dbSizeBytes,
+        appUsedBytes: uploadsSizeBytes + Number(dbSummary.dbSizeBytes || 0),
+        disk
+      },
+      memory: {
+        totalBytes: memoryTotalBytes,
+        usedBytes: memoryUsedBytes,
+        freeBytes: memoryFreeBytes,
+        usedPercent: memoryTotalBytes > 0 ? (memoryUsedBytes / memoryTotalBytes) * 100 : 0
+      },
+      cpu: {
+        cores: cpuCores,
+        load1m: Number(load[0] || 0),
+        load5m: Number(load[1] || 0),
+        load15m: Number(load[2] || 0),
+        loadPercent: cpuLoadPercent
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'No se pudo cargar el resumen del dashboard.' });
   }
 });
 
@@ -913,6 +1158,42 @@ app.delete('/api/panel/categories/:id', async (req, res) => {
   }
 });
 
+app.get('/api/panel/orders', async (_req, res) => {
+  try {
+    res.json(await listOrdersAdmin());
+  } catch (error) {
+    res.status(500).json({ error: 'No se pudieron cargar los pedidos.' });
+  }
+});
+
+app.post('/api/panel/orders', async (req, res) => {
+  try {
+    res.status(201).json(await createOrderAdmin(req.body || {}));
+  } catch (error) {
+    res.status(400).json({ error: error.message || 'No se pudo crear el pedido.' });
+  }
+});
+
+app.put('/api/panel/orders/:id', async (req, res) => {
+  try {
+    const order = await updateOrderAdmin(Number(req.params.id), req.body || {});
+    if (!order) return res.status(404).json({ error: 'Pedido no encontrado.' });
+    return res.json(order);
+  } catch (error) {
+    return res.status(400).json({ error: error.message || 'No se pudo actualizar el pedido.' });
+  }
+});
+
+app.delete('/api/panel/orders/:id', async (req, res) => {
+  try {
+    const ok = await deleteOrderAdmin(Number(req.params.id));
+    if (!ok) return res.status(404).json({ error: 'Pedido no encontrado.' });
+    return res.json({ ok: true });
+  } catch (error) {
+    return res.status(500).json({ error: 'No se pudo eliminar el pedido.' });
+  }
+});
+
 app.get('/api/panel/product-images', async (_req, res) => {
   try {
     res.json(await listProductImages());
@@ -957,6 +1238,50 @@ app.delete('/api/panel/product-images/:id', async (req, res) => {
   }
 });
 
+app.get('/api/panel/page-images', async (_req, res) => {
+  try {
+    res.json(await listPageImages());
+  } catch (error) {
+    res.status(500).json({ error: 'No se pudieron cargar imagenes de paginas.' });
+  }
+});
+
+app.post('/api/panel/page-images', async (req, res) => {
+  try {
+    res.status(201).json(await createPageImage(req.body || {}));
+  } catch (error) {
+    res.status(400).json({ error: error.message || 'No se pudo crear imagen de pagina.' });
+  }
+});
+
+app.put('/api/panel/page-images/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'ID inválido.' });
+    const updated = await updatePageImage(id, req.body || {});
+    if (!updated) return res.status(404).json({ error: 'Imagen de pagina no encontrada.' });
+    return res.json(updated);
+  } catch (error) {
+    return res.status(400).json({ error: error.message || 'No se pudo actualizar imagen de pagina.' });
+  }
+});
+
+app.delete('/api/panel/page-images/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'ID inválido.' });
+    const current = await getPageImageById(id);
+    const ok = await deletePageImage(id);
+    if (!ok) return res.status(404).json({ error: 'Imagen de pagina no encontrada.' });
+    if (current && current.url) {
+      await deleteUploadedImageFamilyByUrl(current.url);
+    }
+    return res.json({ ok: true });
+  } catch (error) {
+    return res.status(500).json({ error: 'No se pudo eliminar imagen de pagina.' });
+  }
+});
+
 app.get('/api/panel/pages', async (_req, res) => {
   try {
     res.json(await listPages());
@@ -985,12 +1310,32 @@ app.put('/api/panel/pages/:id', async (req, res) => {
   }
 });
 
+app.patch('/api/panel/pages/:id/image', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { imageUrl } = req.body || {};
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'ID inválido.' });
+    if (!String(imageUrl || '').trim()) return res.status(400).json({ error: 'imageUrl es obligatorio.' });
+    const updated = await setPageMainImage(id, imageUrl);
+    if (!updated) return res.status(404).json({ error: 'Pagina no encontrada.' });
+    return res.json(updated);
+  } catch (error) {
+    return res.status(400).json({ error: error.message || 'No se pudo actualizar imagen principal de pagina.' });
+  }
+});
+
 app.delete('/api/panel/pages/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'ID inválido.' });
+    const images = await listPageImagesByPageId(id);
     const ok = await deletePage(id);
     if (!ok) return res.status(404).json({ error: 'Página no encontrada.' });
+    if (Array.isArray(images)) {
+      for (const image of images) {
+        await deleteUploadedImageFamilyByUrl(image.url);
+      }
+    }
     return res.json({ ok: true });
   } catch (error) {
     return res.status(500).json({ error: 'No se pudo eliminar página.' });
@@ -1036,6 +1381,55 @@ app.patch('/api/panel/products/:id/image', async (req, res) => {
     return res.json(updated);
   } catch (error) {
     return res.status(400).json({ error: error.message || 'No se pudo actualizar imagen principal.' });
+  }
+});
+
+app.post('/api/panel/products/images/alt/regenerate', async (_req, res) => {
+  try {
+    const result = await regenerateAllProductImageAltTexts();
+    return res.json({
+      ok: true,
+      ...result
+    });
+  } catch (error) {
+    if (error && /desactivado/i.test(String(error.message || ''))) {
+      return res.status(400).json({ error: error.message });
+    }
+    return res.status(500).json({ error: 'No se pudieron regenerar los ALT de imagenes.' });
+  }
+});
+
+app.get('/api/panel/security-settings', async (_req, res) => {
+  try {
+    return res.json(await loadSecuritySettings(true));
+  } catch (_error) {
+    return res.status(500).json({ error: 'No se pudo cargar configuracion de seguridad.' });
+  }
+});
+
+app.put('/api/panel/security-settings', async (req, res) => {
+  try {
+    const updated = await updateSecuritySettings(req.body || {});
+    await loadSecuritySettings(true);
+    return res.json(updated);
+  } catch (error) {
+    return res.status(400).json({ error: error.message || 'No se pudo guardar configuracion de seguridad.' });
+  }
+});
+
+app.get('/api/panel/security-status', async (_req, res) => {
+  try {
+    const settings = await loadSecuritySettings(true);
+    return res.json({
+      ok: true,
+      settings,
+      runtime: {
+        activeRateBuckets: rateLimitBuckets.size,
+        cacheAgeMs: Math.max(0, Date.now() - cachedSecuritySettingsAt)
+      }
+    });
+  } catch (_error) {
+    return res.status(500).json({ error: 'No se pudo cargar estado de seguridad.' });
   }
 });
 

@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=Manrope:wght@400;500;700;800&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=Press+Start+2P&display=swap"
       rel="stylesheet"
     />
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="/vendor/lucide/lucide.min.js"></script>
     <link rel="stylesheet" href="/tailwind.css" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
@@ -90,16 +90,45 @@
               class="w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white placeholder:text-slate-500"
             />
             <input
+              name="province"
+              required
+              placeholder="Provincia"
+              class="w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+            />
+            <input
+              name="city"
+              required
+              placeholder="Ciudad"
+              class="w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+            />
+            <select
+              name="deliveryType"
+              class="w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
+            >
+              <option value="home">Envío a domicilio</option>
+              <option value="branch">Retiro en sucursal Correo Argentino</option>
+            </select>
+            <div id="checkout-address-wrap">
+            <input
               name="address"
               placeholder="Dirección de entrega"
               class="w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white placeholder:text-slate-500"
             />
+            </div>
+            <div id="checkout-branch-wrap" class="hidden">
+              <input
+                name="deliveryBranch"
+                placeholder="Sucursal Correo Argentino (ej: Centro - Córdoba)"
+                class="w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+              />
+            </div>
             <textarea
               name="notes"
               rows="3"
               placeholder="Notas (opcional)"
               class="w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white placeholder:text-slate-500"
             ></textarea>
+            <input name="website" type="text" tabindex="-1" autocomplete="off" class="hidden" aria-hidden="true" />
             <button
               type="submit"
               class="w-full rounded-xl bg-primary-600 py-2.5 font-semibold text-white transition hover:bg-primary-500"

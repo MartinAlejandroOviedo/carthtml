@@ -8,6 +8,33 @@ const productsById = new Map();
 let checkoutForm;
 let whatsappLink;
 
+function setupDeliveryFields(form) {
+  if (!form) return;
+  const deliveryTypeInput = form.elements.namedItem('deliveryType');
+  const addressInput = form.elements.namedItem('address');
+  const branchInput = form.elements.namedItem('deliveryBranch');
+  const addressWrap = document.getElementById('checkout-address-wrap');
+  const branchWrap = document.getElementById('checkout-branch-wrap');
+  if (!deliveryTypeInput || !addressInput || !branchInput) return;
+
+  const refresh = () => {
+    const type = String(deliveryTypeInput.value || 'home').toLowerCase();
+    const isBranch = type === 'branch';
+    if (addressWrap) addressWrap.classList.toggle('hidden', isBranch);
+    if (branchWrap) branchWrap.classList.toggle('hidden', !isBranch);
+    addressInput.required = !isBranch;
+    branchInput.required = isBranch;
+    if (isBranch) {
+      addressInput.value = '';
+    } else {
+      branchInput.value = '';
+    }
+  };
+
+  deliveryTypeInput.addEventListener('change', refresh);
+  refresh();
+}
+
 function refreshCart() {
   renderCart({
     cartItems: cartStore.getItems(),
@@ -40,14 +67,27 @@ async function handleCheckout(event) {
     customer: {
       name: String(formData.get('name') || '').trim(),
       phone: String(formData.get('phone') || '').trim(),
+      province: String(formData.get('province') || '').trim(),
+      city: String(formData.get('city') || '').trim(),
+      deliveryType: String(formData.get('deliveryType') || 'home').trim(),
+      deliveryBranch: String(formData.get('deliveryBranch') || '').trim(),
       address: String(formData.get('address') || '').trim(),
-      notes: String(formData.get('notes') || '').trim()
+      notes: String(formData.get('notes') || '').trim(),
+      website: String(formData.get('website') || '').trim()
     },
     items: cartItems
   };
 
-  if (!payload.customer.name || !payload.customer.phone) {
-    showCheckoutMessage('Completá nombre y teléfono para continuar.', true);
+  if (!payload.customer.name || !payload.customer.phone || !payload.customer.province || !payload.customer.city) {
+    showCheckoutMessage('Completá nombre, teléfono, provincia y ciudad para continuar.', true);
+    return;
+  }
+  if (payload.customer.deliveryType === 'branch' && !payload.customer.deliveryBranch) {
+    showCheckoutMessage('Indicá la sucursal de Correo Argentino para continuar.', true);
+    return;
+  }
+  if (payload.customer.deliveryType !== 'branch' && !payload.customer.address) {
+    showCheckoutMessage('Indicá la dirección para envío a domicilio.', true);
     return;
   }
 
@@ -73,6 +113,7 @@ async function bootstrap() {
   whatsappLink = document.getElementById('whatsapp-link');
 
   checkoutForm.addEventListener('submit', handleCheckout);
+  setupDeliveryFields(checkoutForm);
 
   try {
     const products = await fetchProducts();

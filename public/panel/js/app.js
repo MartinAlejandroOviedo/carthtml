@@ -2,6 +2,14 @@ const TOKEN_KEY = 'panel_token';
 const API_BASE = '/api/panel';
 
 const viewConfig = {
+  dashboard: {
+    title: 'Panel de control',
+    endpoint: 'dashboard-summary',
+    idKey: 'id',
+    columns: [],
+    fields: [],
+    dashboard: true
+  },
   products: {
     title: 'Productos',
     endpoint: 'products',
@@ -12,42 +20,72 @@ const viewConfig = {
       { key: 'category', label: 'Categoria', type: 'select', required: true },
       { key: 'priceArs', label: 'Precio ARS', type: 'number', required: true },
       { key: 'imageUrl', label: 'URL Imagen', type: 'hidden', required: false },
-      { key: 'description', label: 'Descripcion', type: 'textarea', required: true, colSpan: 2 }
+      { key: 'description', label: 'Descripcion', type: 'wysi-min', required: true, colSpan: 2 }
     ]
   },
   categories: {
     title: 'Categorias',
     endpoint: 'categories',
     idKey: 'id',
-    columns: ['id', 'name', 'slug'],
+    columns: ['id', 'name', 'slug', 'icon'],
     fields: [
       { key: 'name', label: 'Nombre', type: 'text', required: true },
-      { key: 'slug', label: 'Slug', type: 'text', required: false }
+      { key: 'slug', label: 'Slug', type: 'text', required: false },
+      {
+        key: 'icon',
+        label: 'Icono Lucide',
+        type: 'text',
+        required: false,
+        placeholder: 'tag',
+        helperText: 'Nombre de icono Lucide (ej: shirt, backpack, dumbbell).'
+      }
     ]
   },
-  'product-images': {
-    title: 'Imagenes de producto',
-    endpoint: 'product-images',
+  orders: {
+    title: 'Pedidos',
+    endpoint: 'orders',
     idKey: 'id',
-    columns: ['id', 'productId', 'url', 'altText', 'sortOrder'],
+    columns: ['id', 'customerName', 'customerPhone', 'customerProvince', 'customerCity', 'deliveryType', 'totalArs', 'itemCount', 'createdAt'],
     fields: [
-      { key: 'productId', label: 'ID Producto', type: 'number', required: true },
-      { key: 'url', label: 'URL', type: 'text', required: true },
-      { key: 'imageFile', label: 'Archivo imagen', type: 'file', required: false, colSpan: 2 },
-      { key: 'imageFiles', label: 'Archivos (multiple)', type: 'file-multiple', required: false, colSpan: 2 },
-      { key: 'altText', label: 'Texto ALT', type: 'text', required: false },
-      { key: 'sortOrder', label: 'Orden', type: 'number', required: false }
+      { key: 'customerName', label: 'Nombre cliente', type: 'text', required: true, colSpan: 2 },
+      { key: 'customerPhone', label: 'Telefono', type: 'text', required: true },
+      { key: 'customerProvince', label: 'Provincia', type: 'text', required: true },
+      { key: 'customerCity', label: 'Ciudad', type: 'text', required: true },
+      {
+        key: 'deliveryType',
+        label: 'Tipo de entrega',
+        type: 'select',
+        required: true,
+        options: [
+          { value: 'home', label: 'Domicilio' },
+          { value: 'branch', label: 'Sucursal Correo Argentino' }
+        ]
+      },
+      { key: 'deliveryBranch', label: 'Sucursal correo', type: 'text', required: false },
+      { key: 'customerAddress', label: 'Direccion', type: 'text', required: false },
+      { key: 'notes', label: 'Notas', type: 'textarea', required: false, colSpan: 2 },
+      { key: 'totalArs', label: 'Total ARS', type: 'number', required: false },
+      {
+        key: 'itemsJson',
+        label: 'Items JSON',
+        type: 'textarea',
+        required: false,
+        colSpan: 2,
+        helperText:
+          'Array JSON de items. Ejemplo: [{"productName":"Camiseta","quantity":2,"unitPriceArs":12000,"subtotalArs":24000}]'
+      }
     ]
   },
   pages: {
     title: 'Paginas',
     endpoint: 'pages',
     idKey: 'id',
-    columns: ['id', 'slug', 'title', 'updatedAt'],
+    columns: ['id', 'slug', 'title', 'imageUrl', 'updatedAt'],
     fields: [
       { key: 'slug', label: 'Slug', type: 'text', required: true },
       { key: 'title', label: 'Titulo', type: 'text', required: true },
-      { key: 'contentHtml', label: 'Contenido HTML', type: 'textarea', required: true, colSpan: 2 }
+      { key: 'imageUrl', label: 'URL Imagen', type: 'hidden', required: false },
+      { key: 'contentHtml', label: 'Contenido HTML', type: 'wysi', required: true, colSpan: 2 }
     ]
   },
   settings: {
@@ -62,7 +100,6 @@ const viewConfig = {
       { id: 'twitter-cards', label: 'Twitter Cards' },
       { id: 'advanced-tags', label: 'Advanced Tags' },
       { id: 'schema-markup', label: 'Schema Markup' },
-      { id: 'google-2026', label: 'Google 2026' },
       { id: 'seo-images', label: 'SEO Imagenes' },
       { id: 'tech-files', label: 'Sitemap / Robots' }
     ],
@@ -97,7 +134,7 @@ const viewConfig = {
       {
         key: 'seoHtmlMetaEnabled',
         label: 'HTML Meta Tags',
-        helper: 'Meta description y keywords',
+        helper: 'Meta description, robots y datos base',
         type: 'switch',
         required: false,
         colSpan: 2,
@@ -140,18 +177,9 @@ const viewConfig = {
         tab: 'general'
       },
       {
-        key: 'seoGoogle2026Enabled',
-        label: 'Google 2026',
-        helper: 'Plan de preparacion para la actualizacion de algoritmo 2026',
-        type: 'switch',
-        required: false,
-        colSpan: 2,
-        tab: 'general'
-      },
-      {
         key: 'seoImagesModuleEnabled',
         label: 'SEO de Imagenes',
-        helper: 'Checklist y politicas globales de optimizacion de imagenes',
+        helper: 'ALT automatico y herramientas de imagen',
         type: 'switch',
         required: false,
         colSpan: 2,
@@ -197,16 +225,6 @@ const viewConfig = {
         recommendedMax: 160
       },
       {
-        key: 'seoHtmlDefaultKeywords',
-        label: 'Meta Keywords (Deprecated - legacy support)',
-        type: 'text',
-        required: false,
-        colSpan: 2,
-        tab: 'html-meta',
-        placeholder: 'keyword1, keyword2, keyword3',
-        helperText: 'Note: Most search engines no longer use meta keywords for ranking.'
-      },
-      {
         key: 'seoHtmlAuthor',
         label: 'Author',
         type: 'text',
@@ -238,42 +256,6 @@ const viewConfig = {
         required: false,
         colSpan: 2,
         tab: 'html-meta'
-      },
-      {
-        key: 'seoGeoSection',
-        label: 'Geographic Targeting',
-        description: 'Opcional. Utiliza region/city/position en formato ISO y coordenadas.',
-        type: 'section',
-        colSpan: 2,
-        tab: 'html-meta'
-      },
-      {
-        key: 'seoHtmlGeoRegion',
-        label: 'Region (ISO 3166-1)',
-        type: 'text',
-        required: false,
-        tab: 'html-meta',
-        placeholder: 'e.g., US-CA, AR-B',
-        helperText: "Country code or country-region (e.g., 'US', 'US-CA' for California)."
-      },
-      {
-        key: 'seoHtmlGeoPlaceName',
-        label: 'Place Name',
-        type: 'text',
-        required: false,
-        tab: 'html-meta',
-        placeholder: 'e.g., San Francisco, Buenos Aires',
-        helperText: 'City or location name.'
-      },
-      {
-        key: 'seoHtmlGeoPosition',
-        label: 'Position (Latitude, Longitude)',
-        type: 'text',
-        required: false,
-        colSpan: 2,
-        tab: 'html-meta',
-        placeholder: 'e.g., -34.6037, -58.3816',
-        helperText: 'Coordinates in format: latitude, longitude.'
       },
       {
         key: 'seoOpenGraphIntro',
@@ -615,371 +597,11 @@ const viewConfig = {
         placeholder: 'Article headline'
       },
       {
-        key: 'seoGoogle2026Intro',
-        label: 'Google Algorithm 2026',
-        description:
-          'Plan global de preparacion para la actualizacion de Google 2026. Se aplica a todo el sitio y sirve como checklist operativo.',
-        type: 'section',
-        colSpan: 2,
-        tab: 'google-2026'
-      },
-      {
-        key: 'seoGoogle2026AgencyName',
-        label: 'Metodo / Agencia',
-        type: 'text',
-        required: false,
-        colSpan: 2,
-        tab: 'google-2026',
-        placeholder: 'Tempocrea'
-      },
-      {
-        key: 'seoGoogle2026RolloutWindow',
-        label: 'Ventana estimada de rollout',
-        type: 'textarea',
-        required: false,
-        colSpan: 2,
-        tab: 'google-2026',
-        placeholder: 'Primeras fases entre marzo-junio 2026, con ajustes en otono.'
-      },
-      {
-        key: 'seoGoogle2026RolloutWindowEnabled',
-        label: 'Activar ventana de rollout',
-        helper: 'Mostrar/usar este punto en la estrategia',
-        type: 'switch',
-        required: false,
-        colSpan: 2,
-        tab: 'google-2026'
-      },
-      {
-        key: 'seoGoogle2026TechnicalSeo',
-        label: '1. SEO tecnico',
-        type: 'textarea',
-        required: false,
-        colSpan: 2,
-        tab: 'google-2026',
-        placeholder: 'Indexacion, arquitectura, sitemap, robots, 404, INP, CLS...'
-      },
-      {
-        key: 'seoGoogle2026TechnicalSeoEnabled',
-        label: 'Activar SEO tecnico',
-        helper: 'Mostrar/usar este punto en la estrategia',
-        type: 'switch',
-        required: false,
-        colSpan: 2,
-        tab: 'google-2026'
-      },
-      {
-        key: 'seoGoogle2026CoreWebVitals',
-        label: '2. Velocidad y Core Web Vitals',
-        type: 'textarea',
-        required: false,
-        colSpan: 2,
-        tab: 'google-2026',
-        placeholder: 'Compresion de imagenes, minificacion, lazy loading, cache...'
-      },
-      {
-        key: 'seoGoogle2026CoreWebVitalsEnabled',
-        label: 'Activar Core Web Vitals',
-        helper: 'Mostrar/usar este punto en la estrategia',
-        type: 'switch',
-        required: false,
-        colSpan: 2,
-        tab: 'google-2026'
-      },
-      {
-        key: 'seoGoogle2026ContentQuality',
-        label: '3. Contenido profundo y original',
-        type: 'textarea',
-        required: false,
-        colSpan: 2,
-        tab: 'google-2026',
-        placeholder: 'Contenido original, experiencia real, semantica LSI...'
-      },
-      {
-        key: 'seoGoogle2026ContentQualityEnabled',
-        label: 'Activar contenido',
-        helper: 'Mostrar/usar este punto en la estrategia',
-        type: 'switch',
-        required: false,
-        colSpan: 2,
-        tab: 'google-2026'
-      },
-      {
-        key: 'seoGoogle2026SecurityMaintenance',
-        label: '4. Seguridad y mantenimiento',
-        type: 'textarea',
-        required: false,
-        colSpan: 2,
-        tab: 'google-2026',
-        placeholder: 'Updates de CMS/plugins, backups, monitoreo 24/7...'
-      },
-      {
-        key: 'seoGoogle2026SecurityMaintenanceEnabled',
-        label: 'Activar seguridad y mantenimiento',
-        helper: 'Mostrar/usar este punto en la estrategia',
-        type: 'switch',
-        required: false,
-        colSpan: 2,
-        tab: 'google-2026'
-      },
-      {
-        key: 'seoGoogle2026LocalAuthority',
-        label: '5. Autoridad local',
-        type: 'textarea',
-        required: false,
-        colSpan: 2,
-        tab: 'google-2026',
-        placeholder: 'Google Business Profile, citaciones, resenas, landings geo...'
-      },
-      {
-        key: 'seoGoogle2026LocalAuthorityEnabled',
-        label: 'Activar autoridad local',
-        helper: 'Mostrar/usar este punto en la estrategia',
-        type: 'switch',
-        required: false,
-        colSpan: 2,
-        tab: 'google-2026'
-      },
-      {
-        key: 'seoGoogle2026UserExperience',
-        label: '6. Experiencia de usuario',
-        type: 'textarea',
-        required: false,
-        colSpan: 2,
-        tab: 'google-2026',
-        placeholder: 'Diseno moderno, intuitivo, minimalista y orientado a conversion.'
-      },
-      {
-        key: 'seoGoogle2026UserExperienceEnabled',
-        label: 'Activar experiencia de usuario',
-        helper: 'Mostrar/usar este punto en la estrategia',
-        type: 'switch',
-        required: false,
-        colSpan: 2,
-        tab: 'google-2026'
-      },
-      {
-        key: 'seoGoogle2026CompetitiveAdvantage',
-        label: 'Ventaja competitiva',
-        type: 'textarea',
-        required: false,
-        colSpan: 2,
-        tab: 'google-2026',
-        placeholder: 'Puntos diferenciales para adelantarse al update.'
-      },
-      {
-        key: 'seoGoogle2026CompetitiveAdvantageEnabled',
-        label: 'Activar ventaja competitiva',
-        helper: 'Mostrar/usar este punto en la estrategia',
-        type: 'switch',
-        required: false,
-        colSpan: 2,
-        tab: 'google-2026'
-      },
-      {
         key: 'seoImagesIntro',
         label: 'SEO de Imagenes',
         description:
-          'Configuracion global para optimizar imagenes con foco en rendimiento, indexacion y visibilidad en Google Imagenes.',
+          'Configuracion operativa para imagenes. El sistema ya genera variantes slider/card y permite regenerar ALT automaticamente.',
         type: 'section',
-        colSpan: 2,
-        tab: 'seo-images'
-      },
-      {
-        key: 'seoImagesFileNames',
-        label: '1. Nombres de archivo descriptivos',
-        type: 'textarea',
-        required: false,
-        colSpan: 2,
-        tab: 'seo-images',
-        placeholder: 'Ej: blanco-air-force-1-rayas-pastel.jpg (usar guiones, no guiones bajos)'
-      },
-      {
-        key: 'seoImagesFileNamesEnabled',
-        label: 'Activar punto 1',
-        helper: 'Aplicar/mostrar esta politica',
-        type: 'switch',
-        required: false,
-        colSpan: 2,
-        tab: 'seo-images'
-      },
-      {
-        key: 'seoImagesResize',
-        label: '2. Redimensionado segun pantalla',
-        type: 'textarea',
-        required: false,
-        colSpan: 2,
-        tab: 'seo-images',
-        placeholder: 'Subir imagenes ajustadas al tamano real de render para evitar peso innecesario.'
-      },
-      {
-        key: 'seoImagesResizeEnabled',
-        label: 'Activar punto 2',
-        helper: 'Aplicar/mostrar esta politica',
-        type: 'switch',
-        required: false,
-        colSpan: 2,
-        tab: 'seo-images'
-      },
-      {
-        key: 'seoImagesCompression',
-        label: '3. Compresion de imagenes',
-        type: 'textarea',
-        required: false,
-        colSpan: 2,
-        tab: 'seo-images',
-        placeholder: 'Comprimir sin perdida perceptible para acelerar carga.'
-      },
-      {
-        key: 'seoImagesCompressionEnabled',
-        label: 'Activar punto 3',
-        helper: 'Aplicar/mostrar esta politica',
-        type: 'switch',
-        required: false,
-        colSpan: 2,
-        tab: 'seo-images'
-      },
-      {
-        key: 'seoImagesFormat',
-        label: '4. Formato correcto',
-        type: 'textarea',
-        required: false,
-        colSpan: 2,
-        tab: 'seo-images',
-        placeholder: 'JPEG fotos, PNG transparencia, WebP compresion moderna, SVG iconos/logos.'
-      },
-      {
-        key: 'seoImagesFormatEnabled',
-        label: 'Activar punto 4',
-        helper: 'Aplicar/mostrar esta politica',
-        type: 'switch',
-        required: false,
-        colSpan: 2,
-        tab: 'seo-images'
-      },
-      {
-        key: 'seoImagesSitemap',
-        label: '5. Sitemap de imagenes',
-        type: 'textarea',
-        required: false,
-        colSpan: 2,
-        tab: 'seo-images',
-        placeholder: 'Incluir URLs de imagenes para mejorar descubrimiento en Google Imagenes.'
-      },
-      {
-        key: 'seoImagesSitemapEnabled',
-        label: 'Activar punto 5',
-        helper: 'Aplicar/mostrar esta politica',
-        type: 'switch',
-        required: false,
-        colSpan: 2,
-        tab: 'seo-images'
-      },
-      {
-        key: 'seoImagesCdn',
-        label: '6. CDN para imagenes',
-        type: 'textarea',
-        required: false,
-        colSpan: 2,
-        tab: 'seo-images',
-        placeholder: 'Distribuir contenido desde nodos cercanos para menor latencia.'
-      },
-      {
-        key: 'seoImagesCdnEnabled',
-        label: 'Activar punto 6',
-        helper: 'Aplicar/mostrar esta politica',
-        type: 'switch',
-        required: false,
-        colSpan: 2,
-        tab: 'seo-images'
-      },
-      {
-        key: 'seoImagesLazyLoading',
-        label: '7. Lazy loading',
-        type: 'textarea',
-        required: false,
-        colSpan: 2,
-        tab: 'seo-images',
-        placeholder: 'Cargar diferido fuera del viewport; evitar en imagenes above-the-fold.'
-      },
-      {
-        key: 'seoImagesLazyLoadingEnabled',
-        label: 'Activar punto 7',
-        helper: 'Aplicar/mostrar esta politica',
-        type: 'switch',
-        required: false,
-        colSpan: 2,
-        tab: 'seo-images'
-      },
-      {
-        key: 'seoImagesBrowserCache',
-        label: '8. Cache del navegador',
-        type: 'textarea',
-        required: false,
-        colSpan: 2,
-        tab: 'seo-images',
-        placeholder: 'Definir expiracion y cache-control para acelerar visitas recurrentes.'
-      },
-      {
-        key: 'seoImagesBrowserCacheEnabled',
-        label: 'Activar punto 8',
-        helper: 'Aplicar/mostrar esta politica',
-        type: 'switch',
-        required: false,
-        colSpan: 2,
-        tab: 'seo-images'
-      },
-      {
-        key: 'seoImagesStructuredData',
-        label: '9. Datos estructurados de imagen',
-        type: 'textarea',
-        required: false,
-        colSpan: 2,
-        tab: 'seo-images',
-        placeholder: 'Usar schema (Product/Recipe/Video) con imagen relevante e indexable.'
-      },
-      {
-        key: 'seoImagesStructuredDataEnabled',
-        label: 'Activar punto 9',
-        helper: 'Aplicar/mostrar esta politica',
-        type: 'switch',
-        required: false,
-        colSpan: 2,
-        tab: 'seo-images'
-      },
-      {
-        key: 'seoImagesSocialTags',
-        label: '10. Open Graph y Twitter Cards',
-        type: 'textarea',
-        required: false,
-        colSpan: 2,
-        tab: 'seo-images',
-        placeholder: 'Definir imagen principal social en OG/Twitter para shares consistentes.'
-      },
-      {
-        key: 'seoImagesSocialTagsEnabled',
-        label: 'Activar punto 10',
-        helper: 'Aplicar/mostrar esta politica',
-        type: 'switch',
-        required: false,
-        colSpan: 2,
-        tab: 'seo-images'
-      },
-      {
-        key: 'seoImagesAudit',
-        label: 'Auditoria de imagenes',
-        type: 'textarea',
-        required: false,
-        colSpan: 2,
-        tab: 'seo-images',
-        placeholder: 'Controlar imagenes rotas, sin ALT y otros errores de SEO tecnico.'
-      },
-      {
-        key: 'seoImagesAuditEnabled',
-        label: 'Activar auditoria',
-        helper: 'Aplicar/mostrar esta politica',
-        type: 'switch',
-        required: false,
         colSpan: 2,
         tab: 'seo-images'
       },
@@ -991,15 +613,6 @@ const viewConfig = {
         type: 'section',
         colSpan: 2,
         tab: 'tech-files'
-      },
-      {
-        key: 'seoSitemapGeneratorNotes',
-        label: 'Sitemap Generator',
-        type: 'textarea',
-        required: false,
-        colSpan: 2,
-        tab: 'tech-files',
-        placeholder: 'Politica del sitemap: que URLs incluir, frecuencia, prioridades.'
       },
       {
         key: 'seoSitemapGeneratorEnabled',
@@ -1067,11 +680,32 @@ let activeView = 'products';
 let editingId = null;
 let productUploadFiles = [];
 let productPrimaryIndex = 0;
+let pageUploadFiles = [];
+let pagePrimaryIndex = 0;
 let activeFormTab = null;
 let ogImagesState = [];
 let twitterImageState = '';
 let hreflangState = [];
 let settingsInlineMode = false;
+let dashboardAutoRefreshTimer = null;
+let dashboardHistory = {
+  cpu: [],
+  memory: [],
+  disk: []
+};
+let dashboardLastSummary = null;
+let dashboardLottieScriptPromise = null;
+let dashboardLottieInstance = null;
+let dashboardChartsScriptPromise = null;
+let dashboardCharts = {};
+let dashboardRefreshPaused = false;
+let dashboardRefreshCountdown = 30;
+let wysiAssetsPromise = null;
+
+const DASHBOARD_HISTORY_LIMIT = 20;
+const DASHBOARD_REFRESH_STORAGE_KEY = 'panel_dashboard_refresh_seconds';
+const DASHBOARD_REFRESH_PAUSED_STORAGE_KEY = 'panel_dashboard_refresh_paused';
+const DEFAULT_DASHBOARD_REFRESH_SECONDS = 30;
 
 const topbarRoot = document.getElementById('panel-topbar');
 const navRoot = document.getElementById('panel-nav');
@@ -1091,11 +725,149 @@ const formBackdrop = document.getElementById('form-backdrop');
 const closeFormBtn = document.getElementById('close-form');
 const formTitle = document.getElementById('form-title');
 const defaultFormParent = formOffcanvas.parentElement;
+let orderDetailModalEl = null;
+
+function formatArs(value) {
+  const amount = Number(value || 0);
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0
+  }).format(Number.isFinite(amount) ? amount : 0);
+}
+
+function parseOrderItems(itemsJson) {
+  if (!itemsJson) return [];
+  if (Array.isArray(itemsJson)) return itemsJson;
+  try {
+    const parsed = JSON.parse(String(itemsJson));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+function normalizeLucideIconName(iconName) {
+  const raw = String(iconName || '').trim().toLowerCase();
+  if (!raw) return 'circle';
+  const normalized = raw === 'sneaker' ? 'footprints' : raw;
+  const iconMap = window.lucide?.icons;
+  const iconKey = normalized
+    .split(/[\s-_]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('');
+  if (iconMap && typeof iconMap === 'object' && !iconMap[iconKey]) {
+    return 'tag';
+  }
+  return normalized;
+}
+
+function ensureOrderDetailModal() {
+  if (orderDetailModalEl) return orderDetailModalEl;
+
+  const wrapper = document.createElement('div');
+  wrapper.id = 'order-detail-modal';
+  wrapper.className = 'fixed inset-0 z-50 hidden';
+  wrapper.innerHTML = `
+    <div class="absolute inset-0 bg-slate-950/75" data-order-detail-close></div>
+    <div class="relative mx-auto mt-8 w-[95%] max-w-3xl rounded-2xl border border-white/10 bg-slate-900 p-4 shadow-2xl">
+      <div class="mb-3 flex items-center justify-between">
+        <p class="font-display text-2xl uppercase text-white">Detalle del pedido</p>
+        <button type="button" class="rounded-lg border border-white/20 px-3 py-1 text-xs text-slate-200" data-order-detail-close>Cerrar</button>
+      </div>
+      <div id="order-detail-content" class="space-y-3"></div>
+    </div>
+  `;
+  document.body.appendChild(wrapper);
+
+  wrapper.querySelectorAll('[data-order-detail-close]').forEach((el) => {
+    el.addEventListener('click', () => {
+      wrapper.classList.add('hidden');
+    });
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      wrapper.classList.add('hidden');
+    }
+  });
+
+  orderDetailModalEl = wrapper;
+  return wrapper;
+}
+
+function openOrderDetailModal(row) {
+  const modal = ensureOrderDetailModal();
+  const content = modal.querySelector('#order-detail-content');
+  if (!content) return;
+
+  const items = parseOrderItems(row.itemsJson);
+  const customerName = row.customerName || '-';
+  const customerPhone = row.customerPhone || '-';
+  const customerProvince = row.customerProvince || '-';
+  const customerCity = row.customerCity || '-';
+  const deliveryType = String(row.deliveryType || 'home').toLowerCase() === 'branch' ? 'branch' : 'home';
+  const deliveryBranch = row.deliveryBranch || '-';
+  const customerAddress = row.customerAddress || '-';
+  const notes = row.notes || '-';
+
+  const itemsHtml = items.length
+    ? items
+        .map((item) => {
+          const name = item.productName || item.name || '-';
+          const qty = Number(item.quantity || 0);
+          const unit = Number(item.unitPriceArs || item.unitPrice || 0);
+          const subtotal = Number(item.subtotalArs || item.subtotal || 0);
+          const attrs = [item.color ? `Color: ${item.color}` : '', item.size ? `Talle: ${item.size}` : '', item.detailText ? `Detalle: ${item.detailText}` : '']
+            .filter(Boolean)
+            .join(' · ');
+          return `
+            <article class="rounded-xl border border-white/10 bg-slate-950/50 p-3">
+              <p class="font-semibold text-slate-100">${name}</p>
+              <p class="mt-1 text-xs text-slate-400">Cantidad: ${qty} · Unitario: ${formatArs(unit)} · Subtotal: ${formatArs(subtotal)}</p>
+              ${attrs ? `<p class="mt-1 text-xs text-slate-500">${attrs}</p>` : ''}
+            </article>
+          `;
+        })
+        .join('')
+    : '<p class="text-sm text-slate-400">Sin items asociados.</p>';
+
+  content.innerHTML = `
+    <div class="grid gap-3 md:grid-cols-2">
+      <div class="rounded-xl border border-white/10 bg-slate-950/50 p-3">
+        <p class="text-xs uppercase tracking-wide text-slate-400">Cliente</p>
+        <p class="mt-1 text-sm text-slate-100">${customerName}</p>
+        <p class="text-sm text-slate-300">${customerPhone}</p>
+        <p class="text-sm text-slate-400">${customerProvince} · ${customerCity}</p>
+        <p class="mt-1 text-xs text-slate-400">
+          ${deliveryType === 'branch' ? `Sucursal: ${deliveryBranch}` : `Domicilio: ${customerAddress}`}
+        </p>
+      </div>
+      <div class="rounded-xl border border-white/10 bg-slate-950/50 p-3">
+        <p class="text-xs uppercase tracking-wide text-slate-400">Pedido #${row.id}</p>
+        <p class="mt-1 text-sm text-slate-300">Fecha: ${row.createdAt || '-'}</p>
+        <p class="text-sm text-slate-300">Items: ${Number(row.itemCount || items.length || 0)}</p>
+        <p class="mt-1 text-lg font-bold text-sky-300">${formatArs(row.totalArs || 0)}</p>
+      </div>
+    </div>
+    <div class="rounded-xl border border-white/10 bg-slate-900/55 p-3">
+      <p class="text-xs uppercase tracking-wide text-slate-400">Notas</p>
+      <p class="mt-1 text-sm text-slate-300">${notes}</p>
+    </div>
+    <div class="space-y-2">
+      <p class="text-xs uppercase tracking-wide text-slate-400">Items</p>
+      ${itemsHtml}
+    </div>
+  `;
+
+  modal.classList.remove('hidden');
+}
 
 function getInitialPanelView() {
   const view = new URLSearchParams(window.location.search).get('view');
   if (view && viewConfig[view]) return view;
-  return 'products';
+  return 'dashboard';
 }
 
 async function loadPart(path) {
@@ -1115,6 +887,487 @@ function getConfig() {
 
 function getAuthToken() {
   return localStorage.getItem(TOKEN_KEY);
+}
+
+function getDashboardRefreshSeconds() {
+  const saved = Number(localStorage.getItem(DASHBOARD_REFRESH_STORAGE_KEY));
+  if (saved === 10 || saved === 30) return saved;
+  return DEFAULT_DASHBOARD_REFRESH_SECONDS;
+}
+
+function setDashboardRefreshSeconds(seconds) {
+  const next = Number(seconds);
+  if (next === 10 || next === 30) {
+    localStorage.setItem(DASHBOARD_REFRESH_STORAGE_KEY, String(next));
+  }
+}
+
+function getDashboardRefreshPaused() {
+  return localStorage.getItem(DASHBOARD_REFRESH_PAUSED_STORAGE_KEY) === '1';
+}
+
+function setDashboardRefreshPaused(value) {
+  dashboardRefreshPaused = Boolean(value);
+  localStorage.setItem(DASHBOARD_REFRESH_PAUSED_STORAGE_KEY, dashboardRefreshPaused ? '1' : '0');
+}
+
+function updateDashboardCountdownUI() {
+  const countdownEl = document.getElementById('dashboard-refresh-countdown');
+  if (!countdownEl) return;
+
+  if (dashboardRefreshPaused) {
+    countdownEl.textContent = 'Pausado';
+    countdownEl.className = 'text-xs text-amber-200';
+    return;
+  }
+
+  countdownEl.textContent = `Proxima actualizacion en ${Math.max(0, Math.ceil(dashboardRefreshCountdown))}s`;
+  countdownEl.className = 'text-xs text-slate-300';
+}
+
+function formatBytes(bytes = 0) {
+  const value = Number(bytes || 0);
+  if (!Number.isFinite(value) || value <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const exponent = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
+  const scaled = value / (1024 ** exponent);
+  const digits = scaled >= 100 || exponent === 0 ? 0 : scaled >= 10 ? 1 : 2;
+  return `${scaled.toFixed(digits)} ${units[exponent]}`;
+}
+
+function pushDashboardHistory(bucket, value) {
+  if (!dashboardHistory[bucket]) return;
+  const nextValue = Number(value);
+  if (!Number.isFinite(nextValue)) return;
+  dashboardHistory[bucket].push(nextValue);
+  if (dashboardHistory[bucket].length > DASHBOARD_HISTORY_LIMIT) {
+    dashboardHistory[bucket] = dashboardHistory[bucket].slice(-DASHBOARD_HISTORY_LIMIT);
+  }
+}
+
+function getAlertLevel(value, warningThreshold = 75, criticalThreshold = 90) {
+  const numeric = Number(value || 0);
+  if (numeric >= criticalThreshold) return 'critical';
+  if (numeric >= warningThreshold) return 'warning';
+  return 'ok';
+}
+
+function getAlertClasses(level) {
+  if (level === 'critical') return 'border-rose-400/45 bg-rose-500/10';
+  if (level === 'warning') return 'border-amber-300/45 bg-amber-500/10';
+  return 'border-white/10 bg-slate-950/50';
+}
+
+function renderSparkBars(values = [], tone = 'sky') {
+  if (!Array.isArray(values) || !values.length) {
+    return '<div class="mt-2 text-[11px] text-slate-500">Sin datos historicos.</div>';
+  }
+  const palette = {
+    sky: '#7dd3fc',
+    emerald: '#6ee7b7',
+    amber: '#fcd34d'
+  };
+  const color = palette[tone] || palette.sky;
+  const bars = values
+    .map((value) => {
+      const clamped = Math.max(0, Math.min(100, Number(value || 0)));
+      return `<span class="h-full w-1.5 rounded-sm" style="height:${Math.max(6, clamped)}%; background-color:${color};"></span>`;
+    })
+    .join('');
+  return `<div class="mt-2 flex h-10 items-end gap-1">${bars}</div>`;
+}
+
+function destroyDashboardCharts() {
+  Object.values(dashboardCharts).forEach((chart) => {
+    if (chart && typeof chart.destroy === 'function') {
+      chart.destroy();
+    }
+  });
+  dashboardCharts = {};
+}
+
+async function ensureDashboardChartsScript() {
+  if (window.Chart) return window.Chart;
+  if (dashboardChartsScriptPromise) return dashboardChartsScriptPromise;
+
+  dashboardChartsScriptPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js';
+    script.async = true;
+    script.onload = () => resolve(window.Chart);
+    script.onerror = () => reject(new Error('No se pudo cargar Chart.js.'));
+    document.head.appendChild(script);
+  });
+
+  return dashboardChartsScriptPromise;
+}
+
+function buildDashboardLineChartConfig({ label, values, color }) {
+  return {
+    type: 'line',
+    data: {
+      labels: values.map((_v, index) => `${index + 1}`),
+      datasets: [
+        {
+          label,
+          data: values,
+          borderColor: color,
+          backgroundColor: `${color}33`,
+          borderWidth: 2,
+          fill: true,
+          tension: 0.35,
+          pointRadius: 0
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      scales: {
+        x: {
+          display: false,
+          grid: { display: false }
+        },
+        y: {
+          min: 0,
+          max: 100,
+          ticks: {
+            color: '#94a3b8',
+            callback: (value) => `${value}%`
+          },
+          grid: { color: 'rgba(148, 163, 184, 0.14)' }
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          enabled: true,
+          callbacks: {
+            label: (ctx) => `${ctx.parsed.y.toFixed(1)}%`
+          }
+        }
+      }
+    }
+  };
+}
+
+async function initDashboardCharts() {
+  const cpuCanvas = document.getElementById('dashboard-chart-cpu');
+  const memoryCanvas = document.getElementById('dashboard-chart-memory');
+  const diskCanvas = document.getElementById('dashboard-chart-disk');
+  if (!cpuCanvas && !memoryCanvas && !diskCanvas) return;
+
+  try {
+    const ChartCtor = await ensureDashboardChartsScript();
+    if (!ChartCtor) return;
+
+    destroyDashboardCharts();
+
+    if (cpuCanvas) {
+      dashboardCharts.cpu = new ChartCtor(
+        cpuCanvas,
+        buildDashboardLineChartConfig({
+          label: 'CPU',
+          values: dashboardHistory.cpu,
+          color: '#38bdf8'
+        })
+      );
+    }
+
+    if (memoryCanvas) {
+      dashboardCharts.memory = new ChartCtor(
+        memoryCanvas,
+        buildDashboardLineChartConfig({
+          label: 'Memoria',
+          values: dashboardHistory.memory,
+          color: '#34d399'
+        })
+      );
+    }
+
+    if (diskCanvas) {
+      dashboardCharts.disk = new ChartCtor(
+        diskCanvas,
+        buildDashboardLineChartConfig({
+          label: 'Disco',
+          values: dashboardHistory.disk,
+          color: '#f59e0b'
+        })
+      );
+    }
+  } catch (_error) {
+    // fallback silencioso: si falla CDN, queda la tarjeta sin grafico
+  }
+}
+
+function destroyDashboardLottie() {
+  if (dashboardLottieInstance && typeof dashboardLottieInstance.destroy === 'function') {
+    dashboardLottieInstance.destroy();
+  }
+  dashboardLottieInstance = null;
+}
+
+async function ensureDashboardLottieScript() {
+  if (window.lottie) return window.lottie;
+  if (dashboardLottieScriptPromise) return dashboardLottieScriptPromise;
+
+  dashboardLottieScriptPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js';
+    script.async = true;
+    script.onload = () => resolve(window.lottie);
+    script.onerror = () => reject(new Error('No se pudo cargar Lottie.'));
+    document.head.appendChild(script);
+  });
+
+  return dashboardLottieScriptPromise;
+}
+
+async function initDashboardLottie() {
+  const container = document.getElementById('dashboard-lottie');
+  if (!container) return;
+
+  try {
+    const lottieLib = await ensureDashboardLottieScript();
+    if (!lottieLib || !container) return;
+    destroyDashboardLottie();
+    dashboardLottieInstance = lottieLib.loadAnimation({
+      container,
+      renderer: 'svg',
+      loop: true,
+      autoplay: true,
+      path: '/panel/lottie/system-monitor.json'
+    });
+  } catch (_error) {
+    container.innerHTML = '<p class="text-xs text-slate-500">Animacion no disponible.</p>';
+  }
+}
+
+function stopDashboardAutoRefresh() {
+  if (dashboardAutoRefreshTimer) {
+    window.clearInterval(dashboardAutoRefreshTimer);
+    dashboardAutoRefreshTimer = null;
+  }
+  dashboardRefreshCountdown = getDashboardRefreshSeconds();
+  updateDashboardCountdownUI();
+}
+
+async function refreshDashboardNow(showToast = false) {
+  try {
+    const summary = await requestJson(`${API_BASE}/dashboard-summary`);
+    if (!summary) return null;
+    dashboardLastSummary = summary;
+    renderDashboardSummary(summary);
+    if (showToast) showMessage('Dashboard actualizado.');
+    return summary;
+  } catch (error) {
+    showMessage(error.message, true);
+    return null;
+  }
+}
+
+function startDashboardAutoRefresh() {
+  stopDashboardAutoRefresh();
+  dashboardRefreshPaused = getDashboardRefreshPaused();
+  const seconds = getDashboardRefreshSeconds();
+  dashboardRefreshCountdown = seconds;
+  updateDashboardCountdownUI();
+  dashboardAutoRefreshTimer = window.setInterval(async () => {
+    if (activeView !== 'dashboard') return;
+    if (dashboardRefreshPaused) {
+      updateDashboardCountdownUI();
+      return;
+    }
+    dashboardRefreshCountdown -= 1;
+    if (dashboardRefreshCountdown <= 0) {
+      await refreshDashboardNow(false);
+      dashboardRefreshCountdown = seconds;
+    }
+    updateDashboardCountdownUI();
+  }, 1000);
+}
+
+function bindDashboardControls() {
+  const refreshSelect = document.getElementById('dashboard-refresh-seconds');
+  const refreshNowBtn = document.getElementById('dashboard-refresh-now');
+  const resetHistoryBtn = document.getElementById('dashboard-reset-history');
+  const pauseToggle = document.getElementById('dashboard-refresh-paused');
+
+  if (refreshSelect) {
+    refreshSelect.value = String(getDashboardRefreshSeconds());
+    refreshSelect.addEventListener('change', () => {
+      setDashboardRefreshSeconds(refreshSelect.value);
+      dashboardRefreshCountdown = getDashboardRefreshSeconds();
+      updateDashboardCountdownUI();
+      if (activeView === 'dashboard') startDashboardAutoRefresh();
+    });
+  }
+
+  if (pauseToggle) {
+    pauseToggle.checked = getDashboardRefreshPaused();
+    pauseToggle.addEventListener('change', () => {
+      setDashboardRefreshPaused(pauseToggle.checked);
+      updateDashboardCountdownUI();
+    });
+  }
+
+  if (refreshNowBtn) {
+    refreshNowBtn.addEventListener('click', async () => {
+      await refreshDashboardNow(true);
+      dashboardRefreshCountdown = getDashboardRefreshSeconds();
+      updateDashboardCountdownUI();
+    });
+  }
+
+  if (resetHistoryBtn) {
+    resetHistoryBtn.addEventListener('click', () => {
+      dashboardHistory = { cpu: [], memory: [], disk: [] };
+      if (dashboardLastSummary) {
+        renderDashboardSummary(dashboardLastSummary);
+      }
+      showMessage('Historico de metricas reiniciado.');
+    });
+  }
+}
+
+function renderDashboardSummary(summary) {
+  const counts = summary?.counts || {};
+  const storage = summary?.storage || {};
+  const memory = summary?.memory || {};
+  const cpu = summary?.cpu || {};
+  const disk = storage?.disk || null;
+  const timestamp = new Date().toLocaleTimeString('es-AR');
+
+  const memoryPercent = Number(memory.usedPercent || 0);
+  const cpuPercent = Number(cpu.loadPercent || 0);
+  const diskPercent =
+    disk && Number(disk.totalBytes || 0) > 0
+      ? (Number(disk.usedBytes || 0) / Number(disk.totalBytes || 1)) * 100
+      : null;
+
+  pushDashboardHistory('cpu', cpuPercent);
+  pushDashboardHistory('memory', memoryPercent);
+  if (diskPercent !== null) pushDashboardHistory('disk', diskPercent);
+
+  const memoryLevel = getAlertLevel(memoryPercent, 75, 85);
+  const cpuLevel = getAlertLevel(cpuPercent, 70, 85);
+  const diskLevel = diskPercent === null ? 'ok' : getAlertLevel(diskPercent, 80, 90);
+  const hasAlerts = [memoryLevel, cpuLevel, diskLevel].some((level) => level !== 'ok');
+
+  headEl.innerHTML = '';
+  bodyEl.innerHTML = `
+    <tr>
+      <td class="px-0 py-0">
+        <div class="space-y-3">
+          <div class="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p class="font-display text-2xl uppercase text-white">Resumen operativo</p>
+                <p class="text-xs text-slate-400">Actualizado: ${timestamp}</p>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <label class="text-xs text-slate-300">
+                  Auto-refresh
+                  <select id="dashboard-refresh-seconds" class="ml-1 rounded-lg border border-white/15 bg-slate-900/70 px-2 py-1 text-xs text-slate-100">
+                    <option value="10">10s</option>
+                    <option value="30">30s</option>
+                  </select>
+                </label>
+                <label class="inline-flex items-center gap-2 text-xs text-slate-300">
+                  <input id="dashboard-refresh-paused" type="checkbox" class="h-4 w-4 rounded border-white/20 bg-slate-900/70 text-sky-400" />
+                  Pausar
+                </label>
+                <button id="dashboard-refresh-now" type="button" class="rounded-lg border border-sky-300/30 bg-sky-500/20 px-3 py-1.5 text-xs text-sky-100">Actualizar ahora</button>
+                <button id="dashboard-reset-history" type="button" class="rounded-lg border border-white/20 bg-slate-900/70 px-3 py-1.5 text-xs text-slate-100">Reiniciar grafico</button>
+              </div>
+            </div>
+            <div class="mt-2 flex items-center justify-between">
+              <p id="dashboard-refresh-countdown" class="text-xs text-slate-300"></p>
+            </div>
+            ${
+              hasAlerts
+                ? `<div class="mt-3 rounded-xl border border-amber-300/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+              Alertas activas:
+              ${memoryLevel !== 'ok' ? ` RAM ${memoryPercent.toFixed(1)}%` : ''}
+              ${cpuLevel !== 'ok' ? ` CPU ${cpuPercent.toFixed(1)}%` : ''}
+              ${diskLevel !== 'ok' && diskPercent !== null ? ` Disco ${diskPercent.toFixed(1)}%` : ''}
+            </div>`
+                : ''
+            }
+          </div>
+          <div class="grid gap-3 lg:grid-cols-[1.2fr_2fr]">
+            <article class="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+              <p class="text-xs uppercase tracking-wide text-slate-400">Estado del sistema</p>
+              <div id="dashboard-lottie" class="mx-auto mt-2 h-40 w-full max-w-[260px]"></div>
+              <p class="mt-2 text-center text-xs text-slate-400">Monitoreo en tiempo real</p>
+            </article>
+            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <article class="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+            <p class="text-xs uppercase tracking-wide text-slate-400">Productos</p>
+            <p class="mt-1 text-3xl font-bold text-sky-300">${Number(counts.products || 0)}</p>
+              </article>
+              <article class="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+            <p class="text-xs uppercase tracking-wide text-slate-400">Categorias</p>
+            <p class="mt-1 text-3xl font-bold text-sky-300">${Number(counts.categories || 0)}</p>
+              </article>
+              <article class="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+            <p class="text-xs uppercase tracking-wide text-slate-400">Pedidos</p>
+            <p class="mt-1 text-3xl font-bold text-sky-300">${Number(counts.orders || 0)}</p>
+              </article>
+              <article class="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+            <p class="text-xs uppercase tracking-wide text-slate-400">Imagenes</p>
+            <p class="mt-1 text-3xl font-bold text-sky-300">${Number(counts.images || 0)}</p>
+              </article>
+              <article class="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+            <p class="text-xs uppercase tracking-wide text-slate-400">Espacio app usado</p>
+            <p class="mt-1 text-2xl font-bold text-sky-300">${formatBytes(storage.appUsedBytes || 0)}</p>
+            <p class="mt-1 text-xs text-slate-400">Uploads: ${formatBytes(storage.uploadsBytes || 0)} · DB: ${formatBytes(
+              storage.dbBytes || 0
+            )}</p>
+              </article>
+            </div>
+          </div>
+          <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <article class="rounded-2xl border ${getAlertClasses(memoryLevel)} p-4">
+            <p class="text-xs uppercase tracking-wide text-slate-400">Memoria (RAM)</p>
+            <p class="mt-1 text-2xl font-bold text-sky-300">${formatBytes(memory.usedBytes || 0)}</p>
+            <p class="mt-1 text-xs text-slate-400">
+              ${Number(memory.usedPercent || 0).toFixed(1)}% usado · Total: ${formatBytes(memory.totalBytes || 0)}
+            </p>
+            <div class="mt-2 h-24"><canvas id="dashboard-chart-memory"></canvas></div>
+          </article>
+          <article class="rounded-2xl border ${getAlertClasses(cpuLevel)} p-4">
+            <p class="text-xs uppercase tracking-wide text-slate-400">CPU (carga)</p>
+            <p class="mt-1 text-2xl font-bold text-sky-300">${Number(cpu.loadPercent || 0).toFixed(1)}%</p>
+            <p class="mt-1 text-xs text-slate-400">
+              Cores: ${Number(cpu.cores || 0)} · Load 1m: ${Number(cpu.load1m || 0).toFixed(2)}
+            </p>
+            <div class="mt-2 h-24"><canvas id="dashboard-chart-cpu"></canvas></div>
+          </article>
+          ${
+            disk
+              ? `<article class="rounded-2xl border ${getAlertClasses(diskLevel)} p-4 md:col-span-2 xl:col-span-1">
+            <p class="text-xs uppercase tracking-wide text-slate-400">Disco del servidor</p>
+            <p class="mt-1 text-lg font-semibold text-slate-100">
+              Usado: ${formatBytes(disk.usedBytes || 0)} · Libre: ${formatBytes(disk.freeBytes || 0)} · Total: ${formatBytes(
+                  disk.totalBytes || 0
+                )}
+            </p>
+            <p class="mt-1 text-xs text-slate-400">${diskPercent !== null ? `${diskPercent.toFixed(1)}% usado` : 'Sin datos de porcentaje'}</p>
+            <div class="mt-2 h-24"><canvas id="dashboard-chart-disk"></canvas></div>
+          </article>`
+              : ''
+          }
+          </div>
+        </div>
+      </td>
+    </tr>
+  `;
+  bindDashboardControls();
+  updateDashboardCountdownUI();
+  void initDashboardLottie();
+  void initDashboardCharts();
 }
 
 function getFieldValue(field, input) {
@@ -1161,6 +1414,124 @@ function updateLengthHint(input) {
   const counter = max > 0 ? `${length}/${max}` : `${length}`;
   target.className = `mt-1 text-xs ${color}`;
   target.textContent = `${counter} caracteres (${status})`;
+}
+
+function syncWysiEditableFromTextarea(textarea) {
+  if (!textarea) return;
+  const scope = textarea.closest('label, div') || document;
+  const editable = scope.querySelector('[contenteditable="true"]');
+  if (!editable) return;
+  editable.innerHTML = textarea.value || '';
+}
+
+function applyMinimalWysiToolbar(textarea) {
+  if (!textarea) return;
+  const scope = textarea.closest('[data-wysi-scope]') || textarea.closest('label') || document;
+  const toolbar =
+    scope.querySelector('.wysi-toolbar') ||
+    scope.querySelector('[class*="toolbar"]') ||
+    scope.querySelector('[role="toolbar"]');
+  if (!toolbar) return;
+
+  const controls = Array.from(toolbar.querySelectorAll('button, [role="button"], select'));
+  controls.forEach((control, index) => {
+    if (index > 4) {
+      control.classList.add('hidden');
+    }
+  });
+}
+
+async function ensureWysiAssets() {
+  if (window.Wysi) return window.Wysi;
+  if (wysiAssetsPromise) return wysiAssetsPromise;
+
+  wysiAssetsPromise = new Promise((resolve, reject) => {
+    const cssId = 'wysi-css-cdn';
+    if (!document.getElementById(cssId)) {
+      const link = document.createElement('link');
+      link.id = cssId;
+      link.rel = 'stylesheet';
+      link.href = 'https://cdn.jsdelivr.net/gh/mdbassit/Wysi@latest/dist/wysi.min.css';
+      document.head.appendChild(link);
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/gh/mdbassit/Wysi@latest/dist/wysi.min.js';
+    script.async = true;
+    script.onload = () => resolve(window.Wysi);
+    script.onerror = () => reject(new Error('No se pudo cargar Wysi.'));
+    document.head.appendChild(script);
+  });
+
+  return wysiAssetsPromise;
+}
+
+async function setupPageWysiEditor() {
+  if (activeView !== 'pages') return;
+  const textarea = formEl.elements.namedItem('contentHtml');
+  if (!textarea) return;
+
+  if (!textarea.id) {
+    textarea.id = 'page-content-wysi';
+  }
+
+  if (textarea.dataset.wysiReady === '1') {
+    syncWysiEditableFromTextarea(textarea);
+    return;
+  }
+
+  try {
+    const WysiCtor = await ensureWysiAssets();
+    if (!WysiCtor) return;
+    WysiCtor({
+      el: `#${textarea.id}`,
+      darkMode: true,
+      autoGrow: true,
+      height: 320,
+      onChange: (content) => {
+        textarea.value = String(content || '');
+      }
+    });
+    textarea.dataset.wysiReady = '1';
+    syncWysiEditableFromTextarea(textarea);
+  } catch (_error) {
+    // fallback silencioso al textarea
+  }
+}
+
+async function setupProductDescriptionWysiEditor() {
+  if (activeView !== 'products') return;
+  const textarea = formEl.elements.namedItem('description');
+  if (!textarea) return;
+
+  if (!textarea.id) {
+    textarea.id = 'product-description-wysi';
+  }
+
+  if (textarea.dataset.wysiReady === '1') {
+    syncWysiEditableFromTextarea(textarea);
+    applyMinimalWysiToolbar(textarea);
+    return;
+  }
+
+  try {
+    const WysiCtor = await ensureWysiAssets();
+    if (!WysiCtor) return;
+    WysiCtor({
+      el: `#${textarea.id}`,
+      darkMode: true,
+      autoGrow: true,
+      height: 220,
+      onChange: (content) => {
+        textarea.value = String(content || '');
+      }
+    });
+    textarea.dataset.wysiReady = '1';
+    syncWysiEditableFromTextarea(textarea);
+    applyMinimalWysiToolbar(textarea);
+  } catch (_error) {
+    // fallback silencioso al textarea
+  }
 }
 
 function setupLengthHints() {
@@ -1656,99 +2027,7 @@ function setupHreflangUI() {
   }
 }
 
-const GOOGLE_2026_SWITCH_BINDINGS = [
-  ['seoGoogle2026RolloutWindowEnabled', 'seoGoogle2026RolloutWindow'],
-  ['seoGoogle2026TechnicalSeoEnabled', 'seoGoogle2026TechnicalSeo'],
-  ['seoGoogle2026CoreWebVitalsEnabled', 'seoGoogle2026CoreWebVitals'],
-  ['seoGoogle2026ContentQualityEnabled', 'seoGoogle2026ContentQuality'],
-  ['seoGoogle2026SecurityMaintenanceEnabled', 'seoGoogle2026SecurityMaintenance'],
-  ['seoGoogle2026LocalAuthorityEnabled', 'seoGoogle2026LocalAuthority'],
-  ['seoGoogle2026UserExperienceEnabled', 'seoGoogle2026UserExperience'],
-  ['seoGoogle2026CompetitiveAdvantageEnabled', 'seoGoogle2026CompetitiveAdvantage']
-];
-
-function applyGoogle2026SwitchState() {
-  const moduleInput = formEl.elements.namedItem('seoGoogle2026Enabled');
-  const moduleEnabled = moduleInput ? Boolean(moduleInput.checked) : true;
-
-  GOOGLE_2026_SWITCH_BINDINGS.forEach(([enabledKey, contentKey]) => {
-    const enabledInput = formEl.elements.namedItem(enabledKey);
-    const contentInput = formEl.elements.namedItem(contentKey);
-    if (!enabledInput || !contentInput) return;
-
-    enabledInput.disabled = !moduleEnabled;
-    enabledInput.classList.toggle('opacity-50', !moduleEnabled);
-
-    const isEnabled = moduleEnabled && Boolean(enabledInput.checked);
-    contentInput.disabled = !isEnabled;
-    contentInput.classList.toggle('opacity-50', !isEnabled);
-  });
-}
-
-function setupGoogle2026SwitchesUI() {
-  const moduleInput = formEl.elements.namedItem('seoGoogle2026Enabled');
-  if (moduleInput) {
-    moduleInput.addEventListener('change', applyGoogle2026SwitchState);
-  }
-
-  GOOGLE_2026_SWITCH_BINDINGS.forEach(([enabledKey]) => {
-    const enabledInput = formEl.elements.namedItem(enabledKey);
-    if (!enabledInput) return;
-    enabledInput.addEventListener('change', applyGoogle2026SwitchState);
-  });
-
-  applyGoogle2026SwitchState();
-}
-
-const SEO_IMAGES_SWITCH_BINDINGS = [
-  ['seoImagesFileNamesEnabled', 'seoImagesFileNames'],
-  ['seoImagesResizeEnabled', 'seoImagesResize'],
-  ['seoImagesCompressionEnabled', 'seoImagesCompression'],
-  ['seoImagesFormatEnabled', 'seoImagesFormat'],
-  ['seoImagesSitemapEnabled', 'seoImagesSitemap'],
-  ['seoImagesCdnEnabled', 'seoImagesCdn'],
-  ['seoImagesLazyLoadingEnabled', 'seoImagesLazyLoading'],
-  ['seoImagesBrowserCacheEnabled', 'seoImagesBrowserCache'],
-  ['seoImagesStructuredDataEnabled', 'seoImagesStructuredData'],
-  ['seoImagesSocialTagsEnabled', 'seoImagesSocialTags'],
-  ['seoImagesAuditEnabled', 'seoImagesAudit']
-];
-
-function applySeoImagesSwitchState() {
-  const moduleInput = formEl.elements.namedItem('seoImagesModuleEnabled');
-  const moduleEnabled = moduleInput ? Boolean(moduleInput.checked) : true;
-
-  SEO_IMAGES_SWITCH_BINDINGS.forEach(([enabledKey, contentKey]) => {
-    const enabledInput = formEl.elements.namedItem(enabledKey);
-    const contentInput = formEl.elements.namedItem(contentKey);
-    if (!enabledInput || !contentInput) return;
-
-    enabledInput.disabled = !moduleEnabled;
-    enabledInput.classList.toggle('opacity-50', !moduleEnabled);
-
-    const isEnabled = moduleEnabled && Boolean(enabledInput.checked);
-    contentInput.disabled = !isEnabled;
-    contentInput.classList.toggle('opacity-50', !isEnabled);
-  });
-}
-
-function setupSeoImagesSwitchesUI() {
-  const moduleInput = formEl.elements.namedItem('seoImagesModuleEnabled');
-  if (moduleInput) {
-    moduleInput.addEventListener('change', applySeoImagesSwitchState);
-  }
-
-  SEO_IMAGES_SWITCH_BINDINGS.forEach(([enabledKey]) => {
-    const enabledInput = formEl.elements.namedItem(enabledKey);
-    if (!enabledInput) return;
-    enabledInput.addEventListener('change', applySeoImagesSwitchState);
-  });
-
-  applySeoImagesSwitchState();
-}
-
 const TECH_FILES_SWITCH_BINDINGS = [
-  ['seoSitemapGeneratorEnabled', 'seoSitemapGeneratorNotes'],
   ['seoRobotsTxtEnabled', 'seoRobotsTxtContent'],
   ['seoHtaccessEnabled', 'seoHtaccessContent']
 ];
@@ -1756,6 +2035,11 @@ const TECH_FILES_SWITCH_BINDINGS = [
 function applyTechFilesSwitchState() {
   const moduleInput = formEl.elements.namedItem('seoTechFilesEnabled');
   const moduleEnabled = moduleInput ? Boolean(moduleInput.checked) : true;
+  const sitemapEnabledInput = formEl.elements.namedItem('seoSitemapGeneratorEnabled');
+  if (sitemapEnabledInput) {
+    sitemapEnabledInput.disabled = !moduleEnabled;
+    sitemapEnabledInput.classList.toggle('opacity-50', !moduleEnabled);
+  }
 
   TECH_FILES_SWITCH_BINDINGS.forEach(([enabledKey, contentKey]) => {
     const enabledInput = formEl.elements.namedItem(enabledKey);
@@ -1784,6 +2068,54 @@ function setupTechFilesSwitchesUI() {
   });
 
   applyTechFilesSwitchState();
+}
+
+function setupSeoAltRegeneratorUI() {
+  const button = document.getElementById('seo-images-regenerate-alt-btn');
+  const status = document.getElementById('seo-images-regenerate-alt-status');
+  const moduleInput = formEl.elements.namedItem('seoImagesModuleEnabled');
+  if (!button || !status) return;
+
+  const syncModuleState = () => {
+    const enabled = moduleInput ? Boolean(moduleInput.checked) : true;
+    button.disabled = !enabled;
+    if (!enabled) {
+      status.textContent = 'Modulo SEO Imagenes desactivado.';
+      status.className = 'text-xs text-amber-300';
+    } else if (status.textContent === 'Modulo SEO Imagenes desactivado.') {
+      status.textContent = 'Sin ejecutar.';
+      status.className = 'text-xs text-slate-400';
+    }
+  };
+
+  if (moduleInput) {
+    moduleInput.addEventListener('change', syncModuleState);
+  }
+  syncModuleState();
+
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    status.textContent = 'Regenerando ALT de imagenes...';
+    status.className = 'text-xs text-slate-300';
+    try {
+      const payload = await requestJson(`${API_BASE}/products/images/alt/regenerate`, {
+        method: 'POST',
+        body: JSON.stringify({})
+      });
+      const updated = Number(payload?.updated || 0);
+      const images = Number(payload?.images || 0);
+      const products = Number(payload?.products || 0);
+      status.textContent = `Listo. ${updated} ALT actualizados sobre ${images} imagen(es) en ${products} producto(s).`;
+      status.className = 'text-xs text-emerald-300';
+      showMessage('ALT de imagenes regenerados.');
+    } catch (error) {
+      status.textContent = error.message || 'No se pudo regenerar ALT.';
+      status.className = 'text-xs text-rose-300';
+      showMessage(error.message || 'No se pudo regenerar ALT.', true);
+    } finally {
+      button.disabled = false;
+    }
+  });
 }
 
 function updateImagePreview(url) {
@@ -1852,6 +2184,41 @@ function renderProductUploadPreview(files) {
   });
 }
 
+function renderPageUploadPreview(files) {
+  const root = document.getElementById('page-upload-preview-list');
+  if (!root) return;
+  if (!files || !files.length) {
+    root.innerHTML = '';
+    return;
+  }
+
+  root.innerHTML = files
+    .filter((file) => file.type && file.type.startsWith('image/'))
+    .map((file, index) => {
+      const objectUrl = URL.createObjectURL(file);
+      const checked = index === pagePrimaryIndex ? 'checked' : '';
+      return `
+        <label class="rounded-xl border border-white/10 bg-slate-900/60 p-2">
+          <img src="${objectUrl}" alt="preview-page-${index + 1}" class="h-24 w-full rounded-lg object-cover" />
+          <span class="mt-2 flex items-center gap-2 text-xs text-slate-200">
+            <input type="radio" name="page-primary-pick" value="${index}" ${checked} />
+            Principal
+          </span>
+          <span class="mt-1 block truncate text-[11px] text-slate-400">${file.name}</span>
+        </label>
+      `;
+    })
+    .join('');
+
+  root.querySelectorAll('input[name="page-primary-pick"]').forEach((radio) => {
+    radio.addEventListener('change', () => {
+      const next = Number(radio.value);
+      if (!Number.isInteger(next) || next < 0) return;
+      pagePrimaryIndex = next;
+    });
+  });
+}
+
 function setProductUploadProgress({ active = false, current = 0, total = 0, message = '' } = {}) {
   const statusEl = document.getElementById('product-upload-status');
   const spinnerEl = document.getElementById('product-upload-spinner');
@@ -1870,22 +2237,34 @@ function setProductUploadProgress({ active = false, current = 0, total = 0, mess
   }
 }
 
-async function uploadImageFile(file, productId = null) {
+async function uploadImageFile(file, entityOrProductId = null, maybeEntityId = null) {
   const token = getAuthToken();
   if (!token) {
     window.location.replace('/panel/login.html');
     return null;
   }
 
+  let entityType = null;
+  let entityId = null;
+  if (typeof entityOrProductId === 'string') {
+    entityType = entityOrProductId;
+    entityId = maybeEntityId;
+  } else {
+    entityType = 'product';
+    entityId = entityOrProductId;
+  }
+
   const data = new FormData();
   const params = new URLSearchParams();
-  if (productId) {
-    data.append('productId', String(productId));
-    data.append('entityType', 'product');
-    data.append('entityId', String(productId));
-    params.set('productId', String(productId));
-    params.set('entityType', 'product');
-    params.set('entityId', String(productId));
+  if (entityId) {
+    data.append('entityType', String(entityType || 'product'));
+    data.append('entityId', String(entityId));
+    params.set('entityType', String(entityType || 'product'));
+    params.set('entityId', String(entityId));
+    if (entityType === 'product') {
+      data.append('productId', String(entityId));
+      params.set('productId', String(entityId));
+    }
   }
   data.append('image', file);
   const query = params.toString() ? `?${params.toString()}` : '';
@@ -1903,22 +2282,34 @@ async function uploadImageFile(file, productId = null) {
   return payload.url;
 }
 
-async function uploadImageFiles(files, productId = null) {
+async function uploadImageFiles(files, entityOrProductId = null, maybeEntityId = null) {
   const token = getAuthToken();
   if (!token) {
     window.location.replace('/panel/login.html');
     return [];
   }
 
+  let entityType = null;
+  let entityId = null;
+  if (typeof entityOrProductId === 'string') {
+    entityType = entityOrProductId;
+    entityId = maybeEntityId;
+  } else {
+    entityType = 'product';
+    entityId = entityOrProductId;
+  }
+
   const data = new FormData();
   const params = new URLSearchParams();
-  if (productId) {
-    data.append('productId', String(productId));
-    data.append('entityType', 'product');
-    data.append('entityId', String(productId));
-    params.set('productId', String(productId));
-    params.set('entityType', 'product');
-    params.set('entityId', String(productId));
+  if (entityId) {
+    data.append('entityType', String(entityType || 'product'));
+    data.append('entityId', String(entityId));
+    params.set('entityType', String(entityType || 'product'));
+    params.set('entityId', String(entityId));
+    if (entityType === 'product') {
+      data.append('productId', String(entityId));
+      params.set('productId', String(entityId));
+    }
   }
   files.forEach((file) => data.append('images', file));
   const query = params.toString() ? `?${params.toString()}` : '';
@@ -1939,7 +2330,7 @@ async function uploadImageFiles(files, productId = null) {
   if (response.status === 404 || response.status === 405) {
     const urls = [];
     for (const file of files) {
-      const url = await uploadImageFile(file, productId);
+      const url = await uploadImageFile(file, entityType, entityId);
       if (url) urls.push(url);
     }
     return urls;
@@ -2341,6 +2732,264 @@ async function renderProductImagesManager(productId) {
   }
 }
 
+function setupPageImageUI() {
+  const imageUrlInput = formEl.elements.namedItem('imageUrl');
+  const imageFilesInput = document.getElementById('page-images-files');
+  if (!imageUrlInput || !imageFilesInput) return;
+
+  imageFilesInput.addEventListener('change', () => {
+    const files = Array.from(imageFilesInput.files || []);
+    const valid = files.filter((file) => file.type && file.type.startsWith('image/'));
+    pageUploadFiles = valid;
+    pagePrimaryIndex = 0;
+    renderPageUploadPreview(valid);
+  });
+
+  renderPageUploadPreview([]);
+  setProductUploadProgress({ active: false, message: 'Sin tareas pendientes.' });
+
+  if (editingId) {
+    renderPageImagesManager(editingId);
+  }
+}
+
+async function processPendingPageImages(pageId) {
+  const files = pageUploadFiles;
+  if (!Array.isArray(files) || !files.length) return { created: 0, principalUrl: null };
+
+  const rows = await requestJson(`${API_BASE}/page-images`);
+  const currentImages = Array.isArray(rows) ? rows.filter((img) => Number(img.pageId) === Number(pageId)) : [];
+  const maxSort = currentImages.reduce((max, img) => Math.max(max, Number(img.sortOrder || 0)), -1);
+  const startSort = maxSort + 1;
+
+  const uploadedUrls = [];
+  let created = 0;
+  for (let i = 0; i < files.length; i += 1) {
+    const file = files[i];
+    if (!file || !file.type || !file.type.startsWith('image/')) continue;
+
+    setProductUploadProgress({
+      active: true,
+      current: i + 1,
+      total: files.length,
+      message: `Subiendo ${i + 1}/${files.length}: ${file.name}`
+    });
+
+    const url = await uploadImageFile(file, 'page', pageId);
+    if (!url) continue;
+    uploadedUrls.push(url);
+
+    await requestJson(`${API_BASE}/page-images`, {
+      method: 'POST',
+      body: JSON.stringify({
+        pageId,
+        url,
+        altText: file?.name || 'imagen',
+        sortOrder: startSort + i
+      })
+    });
+    created += 1;
+  }
+
+  if (!created || !uploadedUrls.length) {
+    throw new Error('No se subieron imagenes validas.');
+  }
+
+  const principalUrl = uploadedUrls[pagePrimaryIndex] || uploadedUrls[0];
+  if (principalUrl) {
+    await requestJson(`${API_BASE}/pages/${pageId}/image`, {
+      method: 'PATCH',
+      body: JSON.stringify({ imageUrl: principalUrl })
+    });
+  }
+
+  const imageUrlInput = formEl.elements.namedItem('imageUrl');
+  if (imageUrlInput && principalUrl) {
+    imageUrlInput.value = principalUrl;
+  }
+
+  const imageFilesInput = document.getElementById('page-images-files');
+  if (imageFilesInput) imageFilesInput.value = '';
+  pageUploadFiles = [];
+  pagePrimaryIndex = 0;
+  renderPageUploadPreview([]);
+  setProductUploadProgress({ active: false, message: `Subida completa: ${created} imagen(es).` });
+
+  return { created, principalUrl };
+}
+
+async function renderPageImagesManager(pageId) {
+  const container = document.getElementById('page-images-manager');
+  if (!container || !pageId) return;
+
+  try {
+    const rows = await requestJson(`${API_BASE}/page-images`);
+    const images = Array.isArray(rows)
+      ? rows
+          .filter((img) => Number(img.pageId) === Number(pageId))
+          .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0) || Number(a.id) - Number(b.id))
+      : [];
+
+    if (!images.length) {
+      container.innerHTML = '<p class="text-xs text-slate-400">Esta pagina aun no tiene galeria.</p>';
+      return;
+    }
+
+    container.innerHTML = images
+      .map(
+        (img, index) => `
+      <article class="page-image-item rounded-xl border border-white/10 bg-slate-900/60 p-2" draggable="true" data-img-id="${img.id}" data-img-index="${index}">
+        <img src="${img.url}" alt="${img.altText || 'img'}" class="h-24 w-full rounded-lg object-cover" />
+        <p class="mt-1 truncate text-[11px] text-slate-400">${img.url}</p>
+        <div class="mt-2 flex gap-1">
+          <button type="button" data-img-main="${img.id}" class="has-tooltip inline-flex h-7 w-7 items-center justify-center rounded border border-sky-300/40 text-sky-200" aria-label="Marcar principal" data-tooltip="Principal">
+            <span class="lucide h-3.5 w-3.5" data-lucide="star"></span>
+          </button>
+          <button type="button" data-img-up="${img.id}" class="has-tooltip inline-flex h-7 w-7 items-center justify-center rounded border border-white/20 text-slate-100" aria-label="Mover arriba" data-tooltip="Subir">
+            <span class="lucide h-3.5 w-3.5" data-lucide="arrow-up"></span>
+          </button>
+          <button type="button" data-img-down="${img.id}" class="has-tooltip inline-flex h-7 w-7 items-center justify-center rounded border border-white/20 text-slate-100" aria-label="Mover abajo" data-tooltip="Bajar">
+            <span class="lucide h-3.5 w-3.5" data-lucide="arrow-down"></span>
+          </button>
+          <button type="button" data-img-del="${img.id}" class="has-tooltip inline-flex h-7 w-7 items-center justify-center rounded border border-rose-400/40 text-rose-300" aria-label="Borrar imagen" data-tooltip="Borrar">
+            <span class="lucide h-3.5 w-3.5" data-lucide="trash-2"></span>
+          </button>
+          <span class="ml-auto text-[11px] text-slate-500">#${index + 1}</span>
+        </div>
+      </article>
+    `
+      )
+      .join('');
+
+    if (window.lucide?.createIcons) {
+      window.lucide.createIcons();
+    }
+
+    container.querySelectorAll('[data-img-del]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const imageId = Number(btn.dataset.imgDel);
+        if (!confirm(`Eliminar imagen ${imageId}?`)) return;
+        try {
+          await requestJson(`${API_BASE}/page-images/${imageId}`, { method: 'DELETE' });
+          await renderPageImagesManager(pageId);
+          showMessage(`Imagen ${imageId} eliminada.`);
+        } catch (error) {
+          showMessage(error.message, true);
+        }
+      });
+    });
+
+    container.querySelectorAll('[data-img-main]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const imageId = Number(btn.dataset.imgMain);
+        const selected = images.find((img) => Number(img.id) === imageId);
+        if (!selected) return;
+        try {
+          await requestJson(`${API_BASE}/pages/${pageId}/image`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              imageUrl: selected.url
+            })
+          });
+          const imageUrlInput = formEl.elements.namedItem('imageUrl');
+          if (imageUrlInput) imageUrlInput.value = selected.url;
+          showMessage(`Imagen ${imageId} marcada como principal.`);
+        } catch (error) {
+          showMessage(error.message, true);
+        }
+      });
+    });
+
+    const move = async (imageId, direction) => {
+      const current = images.find((img) => Number(img.id) === Number(imageId));
+      if (!current) return;
+      const idx = images.findIndex((img) => Number(img.id) === Number(imageId));
+      const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (swapIdx < 0 || swapIdx >= images.length) return;
+      const target = images[swapIdx];
+      try {
+        await requestJson(`${API_BASE}/page-images/${current.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            pageId: current.pageId,
+            url: current.url,
+            altText: current.altText || '',
+            sortOrder: target.sortOrder
+          })
+        });
+        await requestJson(`${API_BASE}/page-images/${target.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            pageId: target.pageId,
+            url: target.url,
+            altText: target.altText || '',
+            sortOrder: current.sortOrder
+          })
+        });
+        await renderPageImagesManager(pageId);
+        showMessage('Orden de imagenes actualizado.');
+      } catch (error) {
+        showMessage(error.message, true);
+      }
+    };
+
+    container.querySelectorAll('[data-img-up]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        await move(Number(btn.dataset.imgUp), 'up');
+      });
+    });
+
+    container.querySelectorAll('[data-img-down]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        await move(Number(btn.dataset.imgDown), 'down');
+      });
+    });
+
+    const items = Array.from(container.querySelectorAll('.page-image-item'));
+    let draggedIndex = null;
+    items.forEach((item) => {
+      item.addEventListener('dragstart', () => {
+        draggedIndex = Number(item.dataset.imgIndex);
+      });
+      item.addEventListener('dragover', (event) => {
+        event.preventDefault();
+      });
+      item.addEventListener('drop', async (event) => {
+        event.preventDefault();
+        const targetIndex = Number(item.dataset.imgIndex);
+        if (!Number.isInteger(draggedIndex) || !Number.isInteger(targetIndex) || draggedIndex === targetIndex) return;
+
+        const reordered = [...images];
+        const [moved] = reordered.splice(draggedIndex, 1);
+        reordered.splice(targetIndex, 0, moved);
+
+        try {
+          for (let i = 0; i < reordered.length; i += 1) {
+            const img = reordered[i];
+            await requestJson(`${API_BASE}/page-images/${img.id}`, {
+              method: 'PUT',
+              body: JSON.stringify({
+                pageId: img.pageId,
+                url: img.url,
+                altText: img.altText || '',
+                sortOrder: i
+              })
+            });
+          }
+          await renderPageImagesManager(pageId);
+          showMessage('Orden actualizado por drag and drop.');
+        } catch (error) {
+          showMessage(error.message, true);
+        } finally {
+          draggedIndex = null;
+        }
+      });
+    });
+  } catch (error) {
+    container.innerHTML = `<p class="text-xs text-rose-300">${error.message}</p>`;
+  }
+}
+
 function setupImageUploadUI() {
   const fileInput = formEl.elements.namedItem('imageFile');
   const filesInput = formEl.elements.namedItem('imageFiles');
@@ -2467,6 +3116,7 @@ function setupImageUploadUI() {
 
 function renderForm() {
   const cfg = getConfig();
+  const fields = Array.isArray(cfg.fields) ? cfg.fields : [];
   const tabsHtml = Array.isArray(cfg.tabs) && cfg.tabs.length
     ? `
       <div id="form-tabs" class="sm:col-span-2 mb-2 flex flex-wrap gap-2">
@@ -2487,7 +3137,7 @@ function renderForm() {
     `
     : '';
 
-  let html = cfg.fields
+  let html = fields
     .map((field) => {
       const colClass = field.colSpan === 2 ? 'sm:col-span-2' : '';
       const tabClass = field.tab ? 'form-tab-item' : '';
@@ -2526,6 +3176,42 @@ function renderForm() {
               class="mt-1 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm"
             ></textarea>
             ${lengthHint}
+            ${helperText}
+          </label>
+        `;
+      }
+
+      if (field.type === 'wysi') {
+        const inputId = `wysi-${field.key}`;
+        return `
+          <label ${tabAttr} data-wysi-scope="full" class="text-sm text-slate-200 ${colClass} ${tabClass}">
+            ${field.label}
+            <textarea
+              id="${inputId}"
+              name="${field.key}"
+              ${field.required ? 'required' : ''}
+              ${placeholderAttr}
+              rows="8"
+              class="mt-1 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm"
+            ></textarea>
+            ${helperText}
+          </label>
+        `;
+      }
+
+      if (field.type === 'wysi-min') {
+        const inputId = `wysi-min-${field.key}`;
+        return `
+          <label ${tabAttr} data-wysi-scope="minimal" class="text-sm text-slate-200 ${colClass} ${tabClass}">
+            ${field.label}
+            <textarea
+              id="${inputId}"
+              name="${field.key}"
+              ${field.required ? 'required' : ''}
+              ${placeholderAttr}
+              rows="5"
+              class="mt-1 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm"
+            ></textarea>
             ${helperText}
           </label>
         `;
@@ -2718,6 +3404,30 @@ function renderForm() {
           `;
         }
 
+        if (activeView === 'pages' && field.key === 'imageUrl') {
+          hiddenHtml += `
+            <div class="sm:col-span-2 rounded-xl border border-white/10 bg-slate-950/40 p-3 space-y-3">
+              <div class="grid gap-2 sm:grid-cols-2">
+                <label class="text-sm text-slate-200">
+                  Cargar imagenes
+                  <input id="page-images-files" type="file" accept="image/*" multiple class="file-picker mt-1 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm" />
+                </label>
+                <div class="text-xs text-slate-400 flex items-end pb-2">Elegi la principal en las previews antes de subir.</div>
+              </div>
+              <p class="text-xs text-slate-400">Las imagenes seleccionadas se suben al presionar Guardar.</p>
+              <div class="flex items-center gap-2 rounded-lg border border-white/10 bg-slate-900/50 px-3 py-2">
+                <span id="product-upload-spinner" class="hidden h-4 w-4 animate-spin rounded-full border-2 border-sky-300/30 border-t-sky-300"></span>
+                <span id="product-upload-status" class="text-xs text-slate-300">Sin tareas pendientes.</span>
+              </div>
+              <div id="page-upload-preview-list" class="grid gap-2 sm:grid-cols-2"></div>
+              <div>
+                <p class="mb-1 text-xs uppercase tracking-wide text-slate-400">Galeria asociada</p>
+                <div id="page-images-manager" class="grid gap-2 sm:grid-cols-2"></div>
+              </div>
+            </div>
+          `;
+        }
+
         return hiddenHtml;
       }
 
@@ -2801,6 +3511,27 @@ function renderForm() {
     `;
   }
 
+  if (activeView === 'settings') {
+    html += `
+      <div data-field-tab="seo-images" class="form-tab-item sm:col-span-2 rounded-xl border border-sky-300/20 bg-sky-500/10 p-3">
+        <p class="text-xs uppercase tracking-wide text-sky-200">Alt de imagenes</p>
+        <p class="mt-1 text-xs text-slate-300">
+          Regenera descripciones ALT en todas las imagenes de productos a partir de nombre, categoria y descripcion.
+        </p>
+        <div class="mt-3 flex flex-wrap items-center gap-3">
+          <button
+            id="seo-images-regenerate-alt-btn"
+            type="button"
+            class="rounded-xl border border-sky-300/35 bg-sky-500/20 px-3 py-2 text-sm text-sky-100 transition hover:bg-sky-500/35"
+          >
+            Regenerar ALT global
+          </button>
+          <span id="seo-images-regenerate-alt-status" class="text-xs text-slate-400">Sin ejecutar.</span>
+        </div>
+      </div>
+    `;
+  }
+
   formEl.innerHTML = `${tabsHtml}${html}`;
 
   if (Array.isArray(cfg.tabs) && cfg.tabs.length) {
@@ -2813,9 +3544,8 @@ function renderForm() {
     setupOgImagesUI();
     setupTwitterImageUI();
     setupHreflangUI();
-    setupGoogle2026SwitchesUI();
-    setupSeoImagesSwitchesUI();
     setupTechFilesSwitchesUI();
+    setupSeoAltRegeneratorUI();
   }
 
   if (activeView === 'product-images') {
@@ -2825,17 +3555,76 @@ function renderForm() {
   if (activeView === 'products') {
     setupProductImageUI();
     populateProductCategorySelect();
+    void setupProductDescriptionWysiEditor();
+  }
+  if (activeView === 'pages') {
+    setupPageImageUI();
+    void setupPageWysiEditor();
   }
 }
 
 function renderTableHead() {
   const cfg = getConfig();
-  headEl.innerHTML = [...cfg.columns.map((col) => `<th class="px-3 py-2">${col}</th>`), '<th class="px-3 py-2">acciones</th>'].join('');
+  if (cfg.dashboard) {
+    headEl.innerHTML = '';
+    return;
+  }
+
+  const iconByColumn = {
+    id: 'hash',
+    name: 'type',
+    slug: 'tag',
+    icon: 'sparkles',
+    category: 'shapes',
+    priceArs: 'badge-dollar-sign',
+    description: 'align-left',
+    imageUrl: 'image',
+    username: 'at-sign',
+    fullName: 'user-round',
+    role: 'shield-check',
+    isActive: 'toggle-right',
+    createdAt: 'calendar-clock',
+    updatedAt: 'history',
+    title: 'heading',
+    contentHtml: 'file-text',
+    customerName: 'user-round',
+    customerPhone: 'phone',
+    customerProvince: 'map-pinned',
+    customerCity: 'building-2',
+    deliveryType: 'truck',
+    totalArs: 'wallet',
+    itemCount: 'package'
+  };
+
+  headEl.innerHTML = [
+    ...cfg.columns.map((col) => {
+      const icon = iconByColumn[col] || 'circle';
+      return `
+        <th class="px-3 py-2 text-center">
+          <span class="has-tooltip inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-slate-900/60 text-slate-200" data-tooltip="${col}">
+            <span class="lucide h-4 w-4" data-lucide="${icon}" aria-hidden="true"></span>
+          </span>
+        </th>
+      `;
+    }),
+    `
+      <th class="px-3 py-2 text-center">
+        <span class="has-tooltip inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-slate-900/60 text-slate-200" data-tooltip="acciones">
+          <span class="lucide h-4 w-4" data-lucide="settings-2" aria-hidden="true"></span>
+        </span>
+      </th>
+    `
+  ].join('');
+
+  if (window.lucide?.createIcons) {
+    window.lucide.createIcons();
+  }
 }
 
 function fillForm(item) {
   const cfg = getConfig();
-  cfg.fields.forEach((field) => {
+  const fields = Array.isArray(cfg.fields) ? cfg.fields : [];
+  fields.forEach((field) => {
     const input = formEl.elements.namedItem(field.key);
     if (field.type === 'file' || field.type === 'file-multiple' || field.type === 'section') return;
     if (field.type === 'og-images') {
@@ -2863,14 +3652,34 @@ function fillForm(item) {
   }
   if (activeView === 'products') {
     populateProductCategorySelect(item.category || '');
+    const descriptionInput = formEl.elements.namedItem('description');
+    if (descriptionInput) {
+      syncWysiEditableFromTextarea(descriptionInput);
+      if (descriptionInput.dataset.wysiReady !== '1') {
+        void setupProductDescriptionWysiEditor();
+      } else {
+        applyMinimalWysiToolbar(descriptionInput);
+      }
+    }
     const productId = Number(item.id || editingId || 0);
     if (Number.isInteger(productId) && productId > 0) {
       renderProductImagesManager(productId);
     }
   }
+  if (activeView === 'pages') {
+    const pageId = Number(item.id || editingId || 0);
+    const contentInput = formEl.elements.namedItem('contentHtml');
+    if (contentInput) {
+      syncWysiEditableFromTextarea(contentInput);
+      if (contentInput.dataset.wysiReady !== '1') {
+        void setupPageWysiEditor();
+      }
+    }
+    if (Number.isInteger(pageId) && pageId > 0) {
+      renderPageImagesManager(pageId);
+    }
+  }
   if (activeView === 'settings') {
-    applyGoogle2026SwitchState();
-    applySeoImagesSwitchState();
     applyTechFilesSwitchState();
   }
 
@@ -2884,10 +3693,12 @@ function clearForm() {
   editingId = null;
   productUploadFiles = [];
   productPrimaryIndex = 0;
+  pageUploadFiles = [];
+  pagePrimaryIndex = 0;
   ogImagesState = [];
   twitterImageState = '';
   hreflangState = [];
-  formEl.reset();
+  if (formEl) formEl.reset();
   if (activeView === 'product-images') {
     updateImagePreview('');
     renderMultiPreview([]);
@@ -2895,6 +3706,12 @@ function clearForm() {
   if (activeView === 'products') {
     const imageUrlInput = formEl.elements.namedItem('imageUrl');
     if (imageUrlInput) imageUrlInput.value = '';
+    const descriptionInput = formEl.elements.namedItem('description');
+    if (descriptionInput) {
+      descriptionInput.value = '';
+      syncWysiEditableFromTextarea(descriptionInput);
+      applyMinimalWysiToolbar(descriptionInput);
+    }
     const imageFilesInput = document.getElementById('product-images-files');
     if (imageFilesInput) imageFilesInput.value = '';
     const imageManager = document.getElementById('product-images-manager');
@@ -2903,12 +3720,25 @@ function clearForm() {
     setProductUploadProgress({ active: false, message: 'Sin tareas pendientes.' });
     void populateProductCategorySelect('');
   }
+  if (activeView === 'pages') {
+    const imageUrlInput = formEl.elements.namedItem('imageUrl');
+    if (imageUrlInput) imageUrlInput.value = '';
+    const contentInput = formEl.elements.namedItem('contentHtml');
+    if (contentInput) {
+      contentInput.value = '';
+      syncWysiEditableFromTextarea(contentInput);
+    }
+    const imageFilesInput = document.getElementById('page-images-files');
+    if (imageFilesInput) imageFilesInput.value = '';
+    const imageManager = document.getElementById('page-images-manager');
+    if (imageManager) imageManager.innerHTML = '<p class="text-xs text-slate-400">Guarda la pagina para gestionar la galeria.</p>';
+    renderPageUploadPreview([]);
+    setProductUploadProgress({ active: false, message: 'Sin tareas pendientes.' });
+  }
   if (activeView === 'settings') {
     renderOgImagesList();
     renderTwitterImagePreview();
     renderHreflangList();
-    applyGoogle2026SwitchState();
-    applySeoImagesSwitchState();
     applyTechFilesSwitchState();
   }
   formEl.querySelectorAll('[data-length-target]').forEach((input) => {
@@ -2966,6 +3796,12 @@ function openForm() {
   if (settingsInlineMode) return;
   formOffcanvas.classList.remove('translate-x-full');
   formBackdrop.classList.remove('hidden');
+  if (activeView === 'products') {
+    void setupProductDescriptionWysiEditor();
+  }
+  if (activeView === 'pages') {
+    void setupPageWysiEditor();
+  }
 }
 
 function closeForm() {
@@ -3000,17 +3836,75 @@ async function requestJson(url, options = {}) {
 
 async function renderRows() {
   const cfg = getConfig();
+  if (cfg.dashboard) {
+    const summary = await requestJson(`${API_BASE}/${cfg.endpoint}`);
+    if (!summary) return [];
+    renderDashboardSummary(summary);
+    return [summary];
+  }
+
   const rows = await requestJson(`${API_BASE}/${cfg.endpoint}`);
   if (!rows) return [];
 
   bodyEl.innerHTML = rows
     .map((row) => {
-      const dataCols = cfg.columns.map((col) => `<td class="border-b border-white/10 px-3 py-2">${row[col] ?? ''}</td>`).join('');
+      const dataCols = cfg.columns
+        .map((col) => {
+          if (activeView === 'categories' && col === 'icon') {
+            const iconName = normalizeLucideIconName(row[col] || 'tag');
+            return `
+              <td class="border-b border-white/10 px-3 py-2">
+                <span class="has-tooltip inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/15 bg-slate-900/60 text-slate-200" data-tooltip="${iconName}">
+                  <span class="lucide h-4 w-4" data-lucide="${iconName}" aria-hidden="true"></span>
+                </span>
+              </td>
+            `;
+          }
+          return `<td class="border-b border-white/10 px-3 py-2">${row[col] ?? ''}</td>`;
+        })
+        .join('');
       const actionButtons = cfg.singleton
-        ? `<button data-edit="${row[cfg.idKey]}" class="rounded-lg border border-white/20 px-2 py-1 text-xs">Editar</button>`
+        ? `
+          <button
+            data-edit="${row[cfg.idKey]}"
+            class="has-tooltip inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/20 text-slate-100"
+            aria-label="Editar"
+            data-tooltip="Editar"
+          >
+            <span class="lucide h-4 w-4" data-lucide="pencil" aria-hidden="true"></span>
+          </button>
+        `
         : `
-              <button data-edit="${row[cfg.idKey]}" class="rounded-lg border border-white/20 px-2 py-1 text-xs">Editar</button>
-              <button data-delete="${row[cfg.idKey]}" class="rounded-lg border border-rose-400/40 px-2 py-1 text-xs text-rose-300">Borrar</button>
+              ${
+                activeView === 'orders'
+                  ? `
+                    <button
+                      data-order-detail="${row[cfg.idKey]}"
+                      class="has-tooltip inline-flex h-8 w-8 items-center justify-center rounded-lg border border-sky-300/30 bg-sky-500/20 text-sky-100"
+                      aria-label="Ver detalle"
+                      data-tooltip="Ver detalle"
+                    >
+                      <span class="lucide h-4 w-4" data-lucide="file-search" aria-hidden="true"></span>
+                    </button>
+                  `
+                  : ''
+              }
+              <button
+                data-edit="${row[cfg.idKey]}"
+                class="has-tooltip inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/20 text-slate-100"
+                aria-label="Editar"
+                data-tooltip="Editar"
+              >
+                <span class="lucide h-4 w-4" data-lucide="pencil" aria-hidden="true"></span>
+              </button>
+              <button
+                data-delete="${row[cfg.idKey]}"
+                class="has-tooltip inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-400/40 text-rose-300"
+                aria-label="Borrar"
+                data-tooltip="Borrar"
+              >
+                <span class="lucide h-4 w-4" data-lucide="trash-2" aria-hidden="true"></span>
+              </button>
             `;
       return `
         <tr class="text-slate-200">
@@ -3024,6 +3918,10 @@ async function renderRows() {
       `;
     })
     .join('');
+
+  if (window.lucide?.createIcons) {
+    window.lucide.createIcons();
+  }
 
   bodyEl.querySelectorAll('[data-edit]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -3041,6 +3939,17 @@ async function renderRows() {
   });
 
   if (!cfg.singleton) {
+    if (activeView === 'orders') {
+      bodyEl.querySelectorAll('[data-order-detail]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = Number(btn.dataset.orderDetail);
+          const row = rows.find((r) => Number(r[cfg.idKey]) === id);
+          if (!row) return;
+          openOrderDetailModal(row);
+        });
+      });
+    }
+
     bodyEl.querySelectorAll('[data-delete]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const id = Number(btn.dataset.delete);
@@ -3061,9 +3970,13 @@ async function renderRows() {
 
 async function saveItem() {
   const cfg = getConfig();
+  if (cfg.dashboard) {
+    showMessage('Dashboard en modo solo lectura.');
+    return;
+  }
   const payload = {};
-
-  cfg.fields.forEach((field) => {
+  const fields = Array.isArray(cfg.fields) ? cfg.fields : [];
+  fields.forEach((field) => {
     const input = formEl.elements.namedItem(field.key);
     if (field.type === 'file' || field.type === 'file-multiple' || field.type === 'section') return;
     payload[field.key] = getFieldValue(field, input);
@@ -3071,6 +3984,9 @@ async function saveItem() {
 
   if (activeView === 'products' && !editingId && productUploadFiles.length && !String(payload.imageUrl || '').trim()) {
     payload.imageUrl = '/uploads/pending-product-image.jpg';
+  }
+  if (activeView === 'pages' && !editingId && pageUploadFiles.length && !String(payload.imageUrl || '').trim()) {
+    payload.imageUrl = '/uploads/pending-page-image.jpg';
   }
 
   try {
@@ -3123,6 +4039,12 @@ async function saveItem() {
         showMessage(`Producto guardado. Se subieron ${uploadResult.created} imagen(es).`);
       }
     }
+    if (activeView === 'pages' && Number.isInteger(Number(targetId)) && Number(targetId) > 0 && pageUploadFiles.length) {
+      const uploadResult = await processPendingPageImages(Number(targetId));
+      if (uploadResult.created > 0) {
+        showMessage(`Pagina guardada. Se subieron ${uploadResult.created} imagen(es).`);
+      }
+    }
 
     clearForm();
     await renderRows();
@@ -3151,6 +4073,10 @@ function activateNav() {
 
 async function switchView(nextView) {
   if (!viewConfig[nextView]) return;
+  stopDashboardAutoRefresh();
+  destroyDashboardLottie();
+  destroyDashboardCharts();
+
   activeView = nextView;
   editingId = null;
   activeFormTab = null;
@@ -3160,16 +4086,29 @@ async function switchView(nextView) {
   window.history.replaceState({}, '', `${url.pathname}?${url.searchParams.toString()}`);
 
   const cfg = getConfig();
+  const isDashboard = Boolean(cfg.dashboard);
   setSettingsInlineMode(Boolean(cfg.singleton));
   viewTitle.textContent = cfg.title;
-  newBtn.classList.toggle('hidden', Boolean(cfg.singleton));
+  newBtn.classList.toggle('hidden', Boolean(cfg.singleton) || isDashboard);
+  saveBtn.classList.toggle('hidden', isDashboard);
+  clearBtn.classList.toggle('hidden', isDashboard);
+  refreshBtn.classList.remove('hidden');
   if (formTitle) {
     formTitle.textContent = cfg.singleton ? 'Configuracion global' : `Nuevo ${cfg.title}`;
   }
   renderForm();
   renderTableHead();
   activateNav();
+  if (window.lucide?.createIcons) {
+    window.lucide.createIcons();
+  }
   const rows = await renderRows();
+
+  if (isDashboard) {
+    startDashboardAutoRefresh();
+    showMessage('Dashboard cargado.');
+    return;
+  }
 
   if (cfg.singleton && Array.isArray(rows) && rows.length) {
     const first = rows[0];
@@ -3223,6 +4162,10 @@ async function bootstrap() {
   closeFormBtn.addEventListener('click', () => closeForm());
   formBackdrop.addEventListener('click', () => closeForm());
   refreshBtn.addEventListener('click', async () => {
+    if (activeView === 'dashboard') {
+      await refreshDashboardNow(true);
+      return;
+    }
     const rows = await renderRows();
     const cfg = getConfig();
     if (cfg.singleton && Array.isArray(rows) && rows.length) {
@@ -3236,6 +4179,12 @@ async function bootstrap() {
     showMessage('Datos recargados.');
   });
 }
+
+window.addEventListener('beforeunload', () => {
+  stopDashboardAutoRefresh();
+  destroyDashboardLottie();
+  destroyDashboardCharts();
+});
 
 bootstrap().catch((error) => {
   showMessage(error.message, true);
