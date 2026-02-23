@@ -8,6 +8,14 @@ const productsById = new Map();
 let checkoutForm;
 let whatsappLink;
 
+function openWhatsappCheckout(url) {
+  if (!url) return;
+  const win = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!win) {
+    window.location.href = url;
+  }
+}
+
 function setupDeliveryFields(form) {
   if (!form) return;
   const deliveryTypeInput = form.elements.namedItem('deliveryType');
@@ -93,10 +101,17 @@ async function handleCheckout(event) {
 
   try {
     const result = await submitOrder(payload);
-    showCheckoutMessage(`Pedido #${result.orderId} creado. Total: ${result.totalFormatted}.`);
+    const summary = [
+      `Pedido #${result.orderId} creado.`,
+      `Subtotal: ${result.itemsTotalFormatted || '-'}.`,
+      `Envio: ${result.shippingFormatted || '-'}.`,
+      `Total: ${result.totalFormatted}.`
+    ].join(' ');
+    showCheckoutMessage(summary);
 
     whatsappLink.href = result.whatsappUrl;
     whatsappLink.classList.remove('hidden');
+    openWhatsappCheckout(result.whatsappUrl);
 
     cartStore.clear();
     checkoutForm.reset();

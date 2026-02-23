@@ -30,6 +30,7 @@ const DEFAULT_ADMIN_USER = {
 };
 const DEFAULT_STORE_NAME = process.env.STORE_NAME || 'SLStore';
 const DEFAULT_WHATSAPP_NUMBER = String(process.env.WHATSAPP_NUMBER || '5491112345678').replace(/\D+/g, '');
+const SHIPPING_FLAT_ARS = 9500;
 const HELP_PAGE_CONTENT_HTML = `
 <section class="mx-auto max-w-6xl px-4 pt-8">
   <div class="rounded-3xl border border-white/10 bg-slate-900/75 p-5 shadow-2xl shadow-slate-950/60">
@@ -716,6 +717,7 @@ async function ensureSchemaMigrations() {
   await addColumnIfMissing('order_items', 'detail_text', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('orders', 'customer_province', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('orders', 'customer_city', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('orders', 'customer_postal_code', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('orders', 'delivery_type', "TEXT NOT NULL DEFAULT 'home'");
   await addColumnIfMissing('orders', 'delivery_branch', "TEXT NOT NULL DEFAULT ''");
 
@@ -1386,6 +1388,9 @@ async function seedSettings() {
 }
 
 function buildWhatsappMessage(order) {
+  const itemsTotal = Number(order.items_total_ars || 0);
+  const shippingTotal = Number(order.shipping_ars || 0);
+  const finalTotal = Number(order.total_ars || 0);
   const lines = [
     '🛒 *Nuevo pedido*',
     `Pedido #${order.id}`,
@@ -1393,6 +1398,7 @@ function buildWhatsappMessage(order) {
     `Teléfono: ${order.customer_phone}`,
     `Provincia: ${order.customer_province || '-'}`,
     `Ciudad: ${order.customer_city || '-'}`,
+    `Codigo postal: ${order.customer_postal_code || '-'}`,
     `Entrega: ${order.delivery_type === 'branch' ? 'Sucursal Correo Argentino' : 'Domicilio'}`,
     `${
       order.delivery_type === 'branch'
@@ -1414,7 +1420,13 @@ function buildWhatsappMessage(order) {
   });
 
   lines.push('');
-  lines.push(`*Total: ${formatCurrency(order.total_ars)}*`);
+  lines.push(`Subtotal productos: ${formatCurrency(itemsTotal)}`);
+  lines.push(`Envio: ${formatCurrency(shippingTotal)}`);
+  lines.push(`*Total pedido: ${formatCurrency(finalTotal)}*`);
+  if (order.customer_notes) {
+    lines.push('');
+    lines.push(`Notas: ${order.customer_notes}`);
+  }
 
   return lines.join('\n');
 }
@@ -1868,7 +1880,9 @@ async function createOrder({ customer, items, whatsappNumber }) {
     };
   });
 
-  const totalArs = orderItems.reduce((sum, item) => sum + item.subtotalArs, 0);
+  const itemsTotalArs = orderItems.reduce((sum, item) => sum + item.subtotalArs, 0);
+  const shippingArs = SHIPPING_FLAT_ARS;
+  const totalArs = itemsTotalArs + shippingArs;
   const customerName = normalizeText(customer?.name, 120);
   const customerPhone = normalizeText(customer?.phone, 80);
   const customerProvince = normalizeText(customer?.province, 80);
@@ -1940,6 +1954,9 @@ async function createOrder({ customer, items, whatsappNumber }) {
       delivery_type: deliveryType,
       delivery_branch: deliveryBranch,
       customer_address: customerAddress,
+      customer_notes: customerNotes,
+      items_total_ars: itemsTotalArs,
+      shipping_ars: shippingArs,
       total_ars: totalArs,
       items: orderItems.map((item) => ({
         name: item.name,
@@ -1956,7 +1973,11 @@ async function createOrder({ customer, items, whatsappNumber }) {
 
     return {
       orderId: order.id,
+      itemsTotalArs,
+      shippingArs,
       totalArs: totalArs,
+      itemsTotalFormatted: formatCurrency(itemsTotalArs),
+      shippingFormatted: formatCurrency(shippingArs),
       totalFormatted: formatCurrency(totalArs),
       whatsappUrl
     };
