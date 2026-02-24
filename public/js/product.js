@@ -68,7 +68,9 @@ function resolveProductImages(product) {
           url: img.url,
           alt: img.alt || product.name,
           sliderUrl: img.sliderUrl || img.url,
-          cardUrl: img.cardUrl || img.url
+          cardUrl: img.cardUrl || img.url,
+          focalX: Number.isFinite(Number(img.focalX)) ? Number(img.focalX) : 50,
+          focalY: Number.isFinite(Number(img.focalY)) ? Number(img.focalY) : 50
         }))
     : [];
 
@@ -78,7 +80,9 @@ function resolveProductImages(product) {
         url: product.imageUrl,
         alt: product.name,
         sliderUrl: product.imageSliderUrl || product.imageUrl,
-        cardUrl: product.imageCardUrl || product.imageUrl
+        cardUrl: product.imageCardUrl || product.imageUrl,
+        focalX: 50,
+        focalY: 50
       }
     ];
   }
@@ -93,7 +97,9 @@ function resolveProductImages(product) {
       url: mainUrl,
       alt: product.name,
       sliderUrl: product.imageSliderUrl || mainUrl,
-      cardUrl: product.imageCardUrl || mainUrl
+      cardUrl: product.imageCardUrl || mainUrl,
+      focalX: 50,
+      focalY: 50
     });
   }
 
@@ -112,7 +118,7 @@ function renderProduct(product) {
     <article class="grid gap-4 md:grid-cols-2">
       <div class="space-y-3">
         <div class="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-800/50">
-          <img id="product-main-image" src="${images[0].sliderUrl || images[0].url}" alt="${images[0].alt || product.name}" class="h-full max-h-[420px] w-full object-cover" />
+          <img id="product-main-image" src="${images[0].sliderUrl || images[0].url}" alt="${images[0].alt || product.name}" class="h-full max-h-[420px] w-full object-cover" style="object-position:${images[0].focalX}% ${images[0].focalY}%;" />
           ${
             hasSlider
               ? `
@@ -154,7 +160,7 @@ function renderProduct(product) {
                 class="product-thumb overflow-hidden rounded-lg border border-white/15 bg-slate-900/50 ${index === 0 ? 'ring-2 ring-sky-400' : ''}"
                 aria-label="Ver imagen ${index + 1}"
               >
-                <img src="${img.cardUrl || img.url}" alt="${img.alt || product.name}" class="h-16 w-full object-cover" />
+                <img src="${img.cardUrl || img.url}" alt="${img.alt || product.name}" class="h-16 w-full object-cover" style="object-position:${img.focalX}% ${img.focalY}%;" />
               </button>
             `
               )
@@ -282,6 +288,7 @@ function renderProduct(product) {
     const image = images[imageIndex];
     mainImageEl.src = image.sliderUrl || image.url;
     mainImageEl.alt = image.alt || product.name;
+    mainImageEl.style.objectPosition = `${image.focalX}% ${image.focalY}%`;
     if (counterEl) {
       counterEl.textContent = `${imageIndex + 1} / ${images.length}`;
     }

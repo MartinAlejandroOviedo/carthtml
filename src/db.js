@@ -252,6 +252,12 @@ function normalizeText(value, maxLength = 120) {
   return String(value || '').trim().slice(0, maxLength);
 }
 
+function normalizeFocalPercent(value, fallback = 50) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.min(100, Math.max(0, Math.round(num)));
+}
+
 function normalizeWhatsappNumber(value) {
   return String(value || '')
     .replace(/\D+/g, '')
@@ -655,6 +661,8 @@ function resolveImageWithVariants(imageRow, fallbackAlt = '') {
   return {
     url: normalizedUrl,
     alt: normalizeText(imageRow?.alt ?? imageRow?.altText ?? fallbackAlt, 160),
+    focalX: normalizeFocalPercent(imageRow?.focalX ?? imageRow?.focal_x, 50),
+    focalY: normalizeFocalPercent(imageRow?.focalY ?? imageRow?.focal_y, 50),
     sliderUrl: sliderExists ? sliderCandidate : normalizedUrl,
     cardUrl: cardExists ? cardCandidate : normalizedUrl
   };
@@ -730,6 +738,10 @@ async function ensureSchemaMigrations() {
   await addColumnIfMissing('orders', 'customer_postal_code', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('orders', 'delivery_type', "TEXT NOT NULL DEFAULT 'home'");
   await addColumnIfMissing('orders', 'delivery_branch', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('product_images', 'focal_x', 'INTEGER NOT NULL DEFAULT 50');
+  await addColumnIfMissing('product_images', 'focal_y', 'INTEGER NOT NULL DEFAULT 50');
+  await addColumnIfMissing('page_images', 'focal_x', 'INTEGER NOT NULL DEFAULT 50');
+  await addColumnIfMissing('page_images', 'focal_y', 'INTEGER NOT NULL DEFAULT 50');
 
   await addColumnIfMissing('settings', 'seo_html_meta_enabled', 'INTEGER NOT NULL DEFAULT 1');
   await addColumnIfMissing('settings', 'seo_open_graph_enabled', 'INTEGER NOT NULL DEFAULT 1');
@@ -1479,6 +1491,8 @@ async function initDb() {
     url TEXT NOT NULL,
     alt_text TEXT NOT NULL DEFAULT '',
     sort_order INTEGER NOT NULL DEFAULT 0,
+    focal_x INTEGER NOT NULL DEFAULT 50,
+    focal_y INTEGER NOT NULL DEFAULT 50,
     FOREIGN KEY (product_id) REFERENCES products(id)
   )`);
 
@@ -1497,6 +1511,8 @@ async function initDb() {
     url TEXT NOT NULL,
     alt_text TEXT NOT NULL DEFAULT '',
     sort_order INTEGER NOT NULL DEFAULT 0,
+    focal_x INTEGER NOT NULL DEFAULT 50,
+    focal_y INTEGER NOT NULL DEFAULT 50,
     FOREIGN KEY (page_id) REFERENCES pages(id)
   )`);
 
@@ -1692,7 +1708,7 @@ async function getPageBySlug(slug) {
 
   if (row) {
     const pageImages = await all(
-      `SELECT url, alt_text as altText
+      `SELECT url, alt_text as altText, focal_x as focalX, focal_y as focalY
        FROM page_images
        WHERE page_id = (SELECT id FROM pages WHERE slug = ? LIMIT 1)
        ORDER BY sort_order ASC, id ASC`,
@@ -1758,14 +1774,14 @@ async function getProducts() {
   });
 
   const imageRows = await all(
-    `SELECT product_id as productId, url, alt_text as altText
+    `SELECT product_id as productId, url, alt_text as altText, focal_x as focalX, focal_y as focalY
      FROM product_images
      ORDER BY product_id, sort_order ASC, id ASC`
   );
   const imagesByProduct = new Map();
   imageRows.forEach((row) => {
     const list = imagesByProduct.get(row.productId) || [];
-    list.push({ url: row.url, alt: row.altText });
+    list.push({ url: row.url, alt: row.altText, focalX: row.focalX, focalY: row.focalY });
     imagesByProduct.set(row.productId, list);
   });
 
@@ -1834,7 +1850,7 @@ async function getProductById(productId) {
   );
 
   const images = await all(
-    `SELECT url, alt_text as altText
+    `SELECT url, alt_text as altText, focal_x as focalX, focal_y as focalY
      FROM product_images
      WHERE product_id = ?
      ORDER BY sort_order ASC, id ASC`,
@@ -3314,7 +3330,9 @@ async function listProductImages() {
       product_id as productId,
       url,
       alt_text as altText,
-      sort_order as sortOrder
+      sort_order as sortOrder,
+      focal_x as focalX,
+      focal_y as focalY
      FROM product_images
      ORDER BY product_id ASC, sort_order ASC, id ASC`
   );
@@ -3327,7 +3345,9 @@ async function getProductImageById(imageId) {
       product_id as productId,
       url,
       alt_text as altText,
-      sort_order as sortOrder
+      sort_order as sortOrder,
+      focal_x as focalX,
+      focal_y as focalY
      FROM product_images
      WHERE id = ?`,
     [imageId]
@@ -3341,7 +3361,9 @@ async function listProductImagesByProductId(productId) {
       product_id as productId,
       url,
       alt_text as altText,
-      sort_order as sortOrder
+      sort_order as sortOrder,
+      focal_x as focalX,
+      focal_y as focalY
      FROM product_images
      WHERE product_id = ?
      ORDER BY sort_order ASC, id ASC`,
@@ -3413,11 +3435,13 @@ async function setProductMainImage(productId, imageUrl) {
   );
 }
 
-async function createProductImage({ productId, url, altText = '', sortOrder = 0 }) {
+async function createProductImage({ productId, url, altText = '', sortOrder = 0, focalX = 50, focalY = 50 }) {
   const normalizedProductId = Number(productId);
   const normalizedUrl = normalizeText(url, 1000);
   const requestedAltText = normalizeText(altText, 160);
   const normalizedSortOrder = Number.isInteger(Number(sortOrder)) ? Number(sortOrder) : 0;
+  const normalizedFocalX = normalizeFocalPercent(focalX, 50);
+  const normalizedFocalY = normalizeFocalPercent(focalY, 50);
 
   if (!Number.isInteger(normalizedProductId) || normalizedProductId <= 0 || !normalizedUrl) {
     throw new Error('Imagen de producto inválida.');
@@ -3433,21 +3457,21 @@ async function createProductImage({ productId, url, altText = '', sortOrder = 0 
     : requestedAltText;
 
   const result = await run(
-    `INSERT INTO product_images (product_id, url, alt_text, sort_order)
-     VALUES (?, ?, ?, ?)`,
-    [normalizedProductId, normalizedUrl, normalizedAltText, normalizedSortOrder]
+    `INSERT INTO product_images (product_id, url, alt_text, sort_order, focal_x, focal_y)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [normalizedProductId, normalizedUrl, normalizedAltText, normalizedSortOrder, normalizedFocalX, normalizedFocalY]
   );
 
   await syncProductMainImage(normalizedProductId);
 
   return get(
-    `SELECT id, product_id as productId, url, alt_text as altText, sort_order as sortOrder
+    `SELECT id, product_id as productId, url, alt_text as altText, sort_order as sortOrder, focal_x as focalX, focal_y as focalY
      FROM product_images WHERE id = ?`,
     [result.id]
   );
 }
 
-async function updateProductImage(imageId, { productId, url, altText, sortOrder }) {
+async function updateProductImage(imageId, { productId, url, altText, sortOrder, focalX, focalY }) {
   const current = await get('SELECT * FROM product_images WHERE id = ?', [imageId]);
   if (!current) return null;
 
@@ -3456,6 +3480,8 @@ async function updateProductImage(imageId, { productId, url, altText, sortOrder 
   const nextUrl = normalizeText(url ?? current.url, 1000);
   const requestedAltText = normalizeText(altText ?? current.alt_text, 160);
   const nextSortOrder = sortOrder === undefined ? Number(current.sort_order) : Number(sortOrder);
+  const nextFocalX = focalX === undefined ? normalizeFocalPercent(current.focal_x, 50) : normalizeFocalPercent(focalX, 50);
+  const nextFocalY = focalY === undefined ? normalizeFocalPercent(current.focal_y, 50) : normalizeFocalPercent(focalY, 50);
   const nextProduct = await getProductMetaForAlt(nextProductId);
   if (!nextProduct) throw new Error('Producto no encontrado para la imagen.');
   const nextAltText = shouldAutofillImageAlt(requestedAltText)
@@ -3464,9 +3490,9 @@ async function updateProductImage(imageId, { productId, url, altText, sortOrder 
 
   await run(
     `UPDATE product_images
-     SET product_id = ?, url = ?, alt_text = ?, sort_order = ?
+     SET product_id = ?, url = ?, alt_text = ?, sort_order = ?, focal_x = ?, focal_y = ?
      WHERE id = ?`,
-    [nextProductId, nextUrl, nextAltText, nextSortOrder, imageId]
+    [nextProductId, nextUrl, nextAltText, nextSortOrder, nextFocalX, nextFocalY, imageId]
   );
 
   await syncProductMainImage(nextProductId);
@@ -3477,7 +3503,7 @@ async function updateProductImage(imageId, { productId, url, altText, sortOrder 
   }
 
   return get(
-    `SELECT id, product_id as productId, url, alt_text as altText, sort_order as sortOrder
+    `SELECT id, product_id as productId, url, alt_text as altText, sort_order as sortOrder, focal_x as focalX, focal_y as focalY
      FROM product_images WHERE id = ?`,
     [imageId]
   );
@@ -3499,7 +3525,9 @@ async function listPageImages() {
       page_id as pageId,
       url,
       alt_text as altText,
-      sort_order as sortOrder
+      sort_order as sortOrder,
+      focal_x as focalX,
+      focal_y as focalY
      FROM page_images
      ORDER BY page_id ASC, sort_order ASC, id ASC`
   );
@@ -3512,7 +3540,9 @@ async function getPageImageById(imageId) {
       page_id as pageId,
       url,
       alt_text as altText,
-      sort_order as sortOrder
+      sort_order as sortOrder,
+      focal_x as focalX,
+      focal_y as focalY
      FROM page_images
      WHERE id = ?`,
     [imageId]
@@ -3526,7 +3556,9 @@ async function listPageImagesByPageId(pageId) {
       page_id as pageId,
       url,
       alt_text as altText,
-      sort_order as sortOrder
+      sort_order as sortOrder,
+      focal_x as focalX,
+      focal_y as focalY
      FROM page_images
      WHERE page_id = ?
      ORDER BY sort_order ASC, id ASC`,
@@ -3598,32 +3630,34 @@ async function setPageMainImage(pageId, imageUrl) {
   );
 }
 
-async function createPageImage({ pageId, url, altText = '', sortOrder = 0 }) {
+async function createPageImage({ pageId, url, altText = '', sortOrder = 0, focalX = 50, focalY = 50 }) {
   const normalizedPageId = Number(pageId);
   const normalizedUrl = normalizeText(url, 1000);
   const normalizedAltText = normalizeText(altText, 160);
   const normalizedSortOrder = Number.isInteger(Number(sortOrder)) ? Number(sortOrder) : 0;
+  const normalizedFocalX = normalizeFocalPercent(focalX, 50);
+  const normalizedFocalY = normalizeFocalPercent(focalY, 50);
 
   if (!Number.isInteger(normalizedPageId) || normalizedPageId <= 0 || !normalizedUrl) {
     throw new Error('Imagen de pagina invalida.');
   }
 
   const result = await run(
-    `INSERT INTO page_images (page_id, url, alt_text, sort_order)
-     VALUES (?, ?, ?, ?)`,
-    [normalizedPageId, normalizedUrl, normalizedAltText, normalizedSortOrder]
+    `INSERT INTO page_images (page_id, url, alt_text, sort_order, focal_x, focal_y)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [normalizedPageId, normalizedUrl, normalizedAltText, normalizedSortOrder, normalizedFocalX, normalizedFocalY]
   );
 
   await syncPageMainImage(normalizedPageId);
 
   return get(
-    `SELECT id, page_id as pageId, url, alt_text as altText, sort_order as sortOrder
+    `SELECT id, page_id as pageId, url, alt_text as altText, sort_order as sortOrder, focal_x as focalX, focal_y as focalY
      FROM page_images WHERE id = ?`,
     [result.id]
   );
 }
 
-async function updatePageImage(imageId, { pageId, url, altText, sortOrder }) {
+async function updatePageImage(imageId, { pageId, url, altText, sortOrder, focalX, focalY }) {
   const current = await get('SELECT * FROM page_images WHERE id = ?', [imageId]);
   if (!current) return null;
 
@@ -3632,12 +3666,14 @@ async function updatePageImage(imageId, { pageId, url, altText, sortOrder }) {
   const nextUrl = normalizeText(url ?? current.url, 1000);
   const nextAltText = normalizeText(altText ?? current.alt_text, 160);
   const nextSortOrder = sortOrder === undefined ? Number(current.sort_order) : Number(sortOrder);
+  const nextFocalX = focalX === undefined ? normalizeFocalPercent(current.focal_x, 50) : normalizeFocalPercent(focalX, 50);
+  const nextFocalY = focalY === undefined ? normalizeFocalPercent(current.focal_y, 50) : normalizeFocalPercent(focalY, 50);
 
   await run(
     `UPDATE page_images
-     SET page_id = ?, url = ?, alt_text = ?, sort_order = ?
+     SET page_id = ?, url = ?, alt_text = ?, sort_order = ?, focal_x = ?, focal_y = ?
      WHERE id = ?`,
-    [nextPageId, nextUrl, nextAltText, nextSortOrder, imageId]
+    [nextPageId, nextUrl, nextAltText, nextSortOrder, nextFocalX, nextFocalY, imageId]
   );
 
   await syncPageMainImage(nextPageId);
@@ -3646,7 +3682,7 @@ async function updatePageImage(imageId, { pageId, url, altText, sortOrder }) {
   }
 
   return get(
-    `SELECT id, page_id as pageId, url, alt_text as altText, sort_order as sortOrder
+    `SELECT id, page_id as pageId, url, alt_text as altText, sort_order as sortOrder, focal_x as focalX, focal_y as focalY
      FROM page_images WHERE id = ?`,
     [imageId]
   );

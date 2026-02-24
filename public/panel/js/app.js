@@ -2558,8 +2558,18 @@ async function renderProductImagesManager(productId) {
       .map(
         (img, index) => `
       <article class="product-image-item rounded-xl border border-white/10 bg-slate-900/60 p-2" draggable="true" data-img-id="${img.id}" data-img-index="${index}">
-        <img src="${img.url}" alt="${img.altText || 'img'}" class="h-24 w-full rounded-lg object-cover" />
+        <img src="${img.url}" alt="${img.altText || 'img'}" class="h-24 w-full rounded-lg object-cover" style="object-position:${Number.isFinite(Number(img.focalX)) ? Number(img.focalX) : 50}% ${Number.isFinite(Number(img.focalY)) ? Number(img.focalY) : 50}%;" data-img-preview="${img.id}" />
         <p class="mt-1 truncate text-[11px] text-slate-400">${img.url}</p>
+        <div class="mt-2 grid grid-cols-2 gap-2">
+          <label class="text-[11px] text-slate-300">
+            Foco X
+            <input type="range" min="0" max="100" step="1" value="${Number.isFinite(Number(img.focalX)) ? Number(img.focalX) : 50}" data-img-fx="${img.id}" class="w-full accent-sky-400" />
+          </label>
+          <label class="text-[11px] text-slate-300">
+            Foco Y
+            <input type="range" min="0" max="100" step="1" value="${Number.isFinite(Number(img.focalY)) ? Number(img.focalY) : 50}" data-img-fy="${img.id}" class="w-full accent-sky-400" />
+          </label>
+        </div>
         <div class="mt-2 flex gap-1">
           <button
             type="button"
@@ -2685,6 +2695,44 @@ async function renderProductImagesManager(productId) {
     container.querySelectorAll('[data-img-down]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         await move(Number(btn.dataset.imgDown), 'down');
+      });
+    });
+
+    const refreshPreviewFocal = (imageId) => {
+      const preview = container.querySelector(`[data-img-preview="${imageId}"]`);
+      const fxInput = container.querySelector(`[data-img-fx="${imageId}"]`);
+      const fyInput = container.querySelector(`[data-img-fy="${imageId}"]`);
+      if (!preview || !fxInput || !fyInput) return;
+      const fx = Number.isFinite(Number(fxInput.value)) ? Number(fxInput.value) : 50;
+      const fy = Number.isFinite(Number(fyInput.value)) ? Number(fyInput.value) : 50;
+      preview.style.objectPosition = `${fx}% ${fy}%`;
+    };
+
+    container.querySelectorAll('[data-img-fx], [data-img-fy]').forEach((input) => {
+      input.addEventListener('input', () => {
+        const imageId = Number(input.dataset.imgFx || input.dataset.imgFy);
+        refreshPreviewFocal(imageId);
+      });
+      input.addEventListener('change', async () => {
+        const imageId = Number(input.dataset.imgFx || input.dataset.imgFy);
+        const current = images.find((img) => Number(img.id) === imageId);
+        if (!current) return;
+        const fxInput = container.querySelector(`[data-img-fx="${imageId}"]`);
+        const fyInput = container.querySelector(`[data-img-fy="${imageId}"]`);
+        const focalX = Number.isFinite(Number(fxInput?.value)) ? Number(fxInput.value) : 50;
+        const focalY = Number.isFinite(Number(fyInput?.value)) ? Number(fyInput.value) : 50;
+        try {
+          await requestJson(`${API_BASE}/product-images/${imageId}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+              focalX,
+              focalY
+            })
+          });
+          showMessage(`Foco actualizado (${focalX}%/${focalY}%).`);
+        } catch (error) {
+          showMessage(error.message, true);
+        }
       });
     });
 
@@ -2840,8 +2888,18 @@ async function renderPageImagesManager(pageId) {
       .map(
         (img, index) => `
       <article class="page-image-item rounded-xl border border-white/10 bg-slate-900/60 p-2" draggable="true" data-img-id="${img.id}" data-img-index="${index}">
-        <img src="${img.url}" alt="${img.altText || 'img'}" class="h-24 w-full rounded-lg object-cover" />
+        <img src="${img.url}" alt="${img.altText || 'img'}" class="h-24 w-full rounded-lg object-cover" style="object-position:${Number.isFinite(Number(img.focalX)) ? Number(img.focalX) : 50}% ${Number.isFinite(Number(img.focalY)) ? Number(img.focalY) : 50}%;" data-img-preview="${img.id}" />
         <p class="mt-1 truncate text-[11px] text-slate-400">${img.url}</p>
+        <div class="mt-2 grid grid-cols-2 gap-2">
+          <label class="text-[11px] text-slate-300">
+            Foco X
+            <input type="range" min="0" max="100" step="1" value="${Number.isFinite(Number(img.focalX)) ? Number(img.focalX) : 50}" data-img-fx="${img.id}" class="w-full accent-sky-400" />
+          </label>
+          <label class="text-[11px] text-slate-300">
+            Foco Y
+            <input type="range" min="0" max="100" step="1" value="${Number.isFinite(Number(img.focalY)) ? Number(img.focalY) : 50}" data-img-fy="${img.id}" class="w-full accent-sky-400" />
+          </label>
+        </div>
         <div class="mt-2 flex gap-1">
           <button type="button" data-img-main="${img.id}" class="has-tooltip inline-flex h-7 w-7 items-center justify-center rounded border border-sky-300/40 text-sky-200" aria-label="Marcar principal" data-tooltip="Principal">
             <span class="lucide h-3.5 w-3.5" data-lucide="star"></span>
@@ -2943,6 +3001,44 @@ async function renderPageImagesManager(pageId) {
     container.querySelectorAll('[data-img-down]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         await move(Number(btn.dataset.imgDown), 'down');
+      });
+    });
+
+    const refreshPreviewFocal = (imageId) => {
+      const preview = container.querySelector(`[data-img-preview="${imageId}"]`);
+      const fxInput = container.querySelector(`[data-img-fx="${imageId}"]`);
+      const fyInput = container.querySelector(`[data-img-fy="${imageId}"]`);
+      if (!preview || !fxInput || !fyInput) return;
+      const fx = Number.isFinite(Number(fxInput.value)) ? Number(fxInput.value) : 50;
+      const fy = Number.isFinite(Number(fyInput.value)) ? Number(fyInput.value) : 50;
+      preview.style.objectPosition = `${fx}% ${fy}%`;
+    };
+
+    container.querySelectorAll('[data-img-fx], [data-img-fy]').forEach((input) => {
+      input.addEventListener('input', () => {
+        const imageId = Number(input.dataset.imgFx || input.dataset.imgFy);
+        refreshPreviewFocal(imageId);
+      });
+      input.addEventListener('change', async () => {
+        const imageId = Number(input.dataset.imgFx || input.dataset.imgFy);
+        const current = images.find((img) => Number(img.id) === imageId);
+        if (!current) return;
+        const fxInput = container.querySelector(`[data-img-fx="${imageId}"]`);
+        const fyInput = container.querySelector(`[data-img-fy="${imageId}"]`);
+        const focalX = Number.isFinite(Number(fxInput?.value)) ? Number(fxInput.value) : 50;
+        const focalY = Number.isFinite(Number(fyInput?.value)) ? Number(fyInput.value) : 50;
+        try {
+          await requestJson(`${API_BASE}/page-images/${imageId}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+              focalX,
+              focalY
+            })
+          });
+          showMessage(`Foco actualizado (${focalX}%/${focalY}%).`);
+        } catch (error) {
+          showMessage(error.message, true);
+        }
       });
     });
 

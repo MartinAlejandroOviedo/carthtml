@@ -13,16 +13,19 @@ export function renderProducts(products, onAddToCart) {
   grid.innerHTML = products
     .map(
       (product, index) => {
+        const firstImage = Array.isArray(product.images) && product.images[0] ? product.images[0] : null;
         const cardImage =
           product.imageCardUrl ||
-          (Array.isArray(product.images) && product.images[0] && (product.images[0].cardUrl || product.images[0].url)) ||
+          (firstImage && (firstImage.cardUrl || firstImage.url)) ||
           product.imageUrl;
-        const cardImageAlt = (Array.isArray(product.images) && product.images[0] && product.images[0].alt) || product.name;
+        const cardImageAlt = (firstImage && firstImage.alt) || product.name;
+        const focalX = Number.isFinite(Number(firstImage?.focalX)) ? Number(firstImage.focalX) : 50;
+        const focalY = Number.isFinite(Number(firstImage?.focalY)) ? Number(firstImage.focalY) : 50;
 
         return `
       <article class="product-card overflow-hidden rounded-3xl border border-white/10 bg-slate-900/75 shadow-xl shadow-slate-950/40" style="animation-delay:${index * 40}ms">
         <a href="/product.html?id=${product.id}" class="block">
-          <img src="${cardImage}" alt="${cardImageAlt}" class="h-48 w-full object-cover" loading="lazy" />
+          <img src="${cardImage}" alt="${cardImageAlt}" class="h-48 w-full object-cover" style="object-position:${focalX}% ${focalY}%;" loading="lazy" />
         </a>
         <div class="space-y-2 p-4">
           <p class="text-xs uppercase tracking-wide text-sky-300/85">${product.category}</p>
