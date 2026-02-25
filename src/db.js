@@ -738,6 +738,10 @@ async function ensureSchemaMigrations() {
   await addColumnIfMissing('orders', 'customer_postal_code', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('orders', 'delivery_type', "TEXT NOT NULL DEFAULT 'home'");
   await addColumnIfMissing('orders', 'delivery_branch', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'social_instagram_url', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'social_facebook_url', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'social_youtube_url', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'social_x_url', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('product_images', 'focal_x', 'INTEGER NOT NULL DEFAULT 50');
   await addColumnIfMissing('product_images', 'focal_y', 'INTEGER NOT NULL DEFAULT 50');
   await addColumnIfMissing('page_images', 'focal_x', 'INTEGER NOT NULL DEFAULT 50');
@@ -1530,6 +1534,10 @@ async function initDb() {
     id INTEGER PRIMARY KEY CHECK (id = 1),
     store_name TEXT NOT NULL,
     whatsapp_number TEXT NOT NULL,
+    social_instagram_url TEXT NOT NULL DEFAULT '',
+    social_facebook_url TEXT NOT NULL DEFAULT '',
+    social_youtube_url TEXT NOT NULL DEFAULT '',
+    social_x_url TEXT NOT NULL DEFAULT '',
     seo_social_meta_enabled INTEGER NOT NULL DEFAULT 1,
     seo_html_meta_enabled INTEGER NOT NULL DEFAULT 1,
     seo_open_graph_enabled INTEGER NOT NULL DEFAULT 1,
@@ -2110,6 +2118,58 @@ async function listOrdersAdmin() {
   return rows;
 }
 
+async function getOrderAdminById(orderId) {
+  const normalizedOrderId = Number(orderId);
+  if (!Number.isInteger(normalizedOrderId) || normalizedOrderId <= 0) return null;
+
+  const row = await get(
+    `SELECT
+      o.id,
+      o.customer_name as customerName,
+      o.customer_phone as customerPhone,
+      o.customer_province as customerProvince,
+      o.customer_city as customerCity,
+      o.customer_postal_code as customerPostalCode,
+      o.delivery_type as deliveryType,
+      o.delivery_branch as deliveryBranch,
+      o.customer_address as customerAddress,
+      o.notes,
+      o.total_ars as totalArs,
+      o.created_at as createdAt
+     FROM orders o
+     WHERE o.id = ?
+     LIMIT 1`,
+    [normalizedOrderId]
+  );
+  if (!row) return null;
+
+  const items = await all(
+    `SELECT
+      oi.product_id as productId,
+      oi.product_name as productName,
+      oi.unit_price_ars as unitPriceArs,
+      oi.quantity,
+      oi.subtotal_ars as subtotalArs,
+      oi.color,
+      oi.size,
+      oi.detail_text as detailText,
+      p.image_url as productImageUrl
+     FROM order_items oi
+     LEFT JOIN products p ON p.id = oi.product_id
+     WHERE oi.order_id = ?
+     ORDER BY oi.id ASC`,
+    [normalizedOrderId]
+  );
+
+  return {
+    ...row,
+    itemCount: items.length,
+    itemsPreview: items.map((item) => `${item.productName} x${item.quantity}`).join(' | '),
+    itemsJson: JSON.stringify(items),
+    items
+  };
+}
+
 async function createOrderAdmin({
   customerName,
   customerPhone,
@@ -2322,6 +2382,10 @@ async function getSettings() {
       id,
       store_name as storeName,
       whatsapp_number as whatsappNumber,
+      social_instagram_url as socialInstagramUrl,
+      social_facebook_url as socialFacebookUrl,
+      social_youtube_url as socialYoutubeUrl,
+      social_x_url as socialXUrl,
       seo_social_meta_enabled as seoSocialMetaEnabled,
       seo_html_meta_enabled as seoHtmlMetaEnabled,
       seo_open_graph_enabled as seoOpenGraphEnabled,
@@ -2431,6 +2495,10 @@ async function getSettings() {
       id,
       store_name as storeName,
       whatsapp_number as whatsappNumber,
+      social_instagram_url as socialInstagramUrl,
+      social_facebook_url as socialFacebookUrl,
+      social_youtube_url as socialYoutubeUrl,
+      social_x_url as socialXUrl,
       seo_social_meta_enabled as seoSocialMetaEnabled,
       seo_html_meta_enabled as seoHtmlMetaEnabled,
       seo_open_graph_enabled as seoOpenGraphEnabled,
@@ -2541,6 +2609,10 @@ async function listSettings() {
 async function updateSettings({
   storeName,
   whatsappNumber,
+  socialInstagramUrl,
+  socialFacebookUrl,
+  socialYoutubeUrl,
+  socialXUrl,
   seoSocialMetaEnabled,
   seoHtmlMetaEnabled,
   seoOpenGraphEnabled,
@@ -2645,6 +2717,10 @@ async function updateSettings({
 
   const nextStoreName = normalizeText(storeName ?? current.storeName, 120);
   const nextWhatsappNumber = normalizeWhatsappNumber(whatsappNumber ?? current.whatsappNumber);
+  const nextSocialInstagramUrl = normalizeText(socialInstagramUrl ?? current.socialInstagramUrl, 1000);
+  const nextSocialFacebookUrl = normalizeText(socialFacebookUrl ?? current.socialFacebookUrl, 1000);
+  const nextSocialYoutubeUrl = normalizeText(socialYoutubeUrl ?? current.socialYoutubeUrl, 1000);
+  const nextSocialXUrl = normalizeText(socialXUrl ?? current.socialXUrl, 1000);
   let nextSeoSocialMetaEnabled =
     seoSocialMetaEnabled === undefined ? Number(current.seoSocialMetaEnabled) : Number(seoSocialMetaEnabled) ? 1 : 0;
   const nextSeoHtmlMetaEnabled =
@@ -3211,6 +3287,17 @@ async function updateSettings({
       nextSeoHtaccessEnabled,
       nextSeoHtaccessContent
     ]
+  );
+
+  await run(
+    `UPDATE settings
+     SET social_instagram_url = ?,
+         social_facebook_url = ?,
+         social_youtube_url = ?,
+         social_x_url = ?,
+         updated_at = datetime('now', 'localtime')
+     WHERE id = 1`,
+    [nextSocialInstagramUrl, nextSocialFacebookUrl, nextSocialYoutubeUrl, nextSocialXUrl]
   );
 
   return getSettings();
@@ -3959,6 +4046,7 @@ module.exports = {
   getDashboardSummary,
   createOrder,
   listOrdersAdmin,
+  getOrderAdminById,
   createOrderAdmin,
   updateOrderAdmin,
   deleteOrderAdmin,

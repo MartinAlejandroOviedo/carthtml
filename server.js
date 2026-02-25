@@ -12,6 +12,7 @@ const {
   getDashboardSummary,
   createOrder,
   listOrdersAdmin,
+  getOrderAdminById,
   createOrderAdmin,
   updateOrderAdmin,
   deleteOrderAdmin,
@@ -883,6 +884,35 @@ app.post('/api/orders', async (req, res) => {
   }
 });
 
+app.get('/api/site-config', async (_req, res) => {
+  try {
+    const settings = await getSettings();
+    const storeName = String(settings?.storeName || process.env.STORE_NAME || 'SLStore').trim();
+    const whatsappNumber = String(settings?.whatsappNumber || WHATSAPP_NUMBER || '')
+      .replace(/\D+/g, '')
+      .slice(0, 20);
+    return res.json({
+      storeName,
+      whatsappNumber,
+      socialInstagramUrl: String(settings?.socialInstagramUrl || '').trim(),
+      socialFacebookUrl: String(settings?.socialFacebookUrl || '').trim(),
+      socialYoutubeUrl: String(settings?.socialYoutubeUrl || '').trim(),
+      socialXUrl: String(settings?.socialXUrl || '').trim()
+    });
+  } catch (_error) {
+    return res.json({
+      storeName: String(process.env.STORE_NAME || 'SLStore').trim(),
+      whatsappNumber: String(WHATSAPP_NUMBER || '')
+        .replace(/\D+/g, '')
+        .slice(0, 20),
+      socialInstagramUrl: '',
+      socialFacebookUrl: '',
+      socialYoutubeUrl: '',
+      socialXUrl: ''
+    });
+  }
+});
+
 app.get('/api/pages/:slug', async (req, res) => {
   try {
     const page = await getPageBySlug(req.params.slug);
@@ -1164,6 +1194,18 @@ app.get('/api/panel/orders', async (_req, res) => {
     res.json(await listOrdersAdmin());
   } catch (error) {
     res.status(500).json({ error: 'No se pudieron cargar los pedidos.' });
+  }
+});
+
+app.get('/api/panel/orders/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'ID inválido.' });
+    const order = await getOrderAdminById(id);
+    if (!order) return res.status(404).json({ error: 'Pedido no encontrado.' });
+    return res.json(order);
+  } catch (error) {
+    return res.status(500).json({ error: 'No se pudo cargar el pedido.' });
   }
 });
 

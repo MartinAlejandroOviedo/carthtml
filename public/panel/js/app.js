@@ -125,6 +125,42 @@ const viewConfig = {
         placeholder: '5491112345678'
       },
       {
+        key: 'socialInstagramUrl',
+        label: 'Instagram URL',
+        type: 'text',
+        required: false,
+        colSpan: 2,
+        tab: 'general',
+        placeholder: 'https://instagram.com/tu-cuenta'
+      },
+      {
+        key: 'socialFacebookUrl',
+        label: 'Facebook URL',
+        type: 'text',
+        required: false,
+        colSpan: 2,
+        tab: 'general',
+        placeholder: 'https://facebook.com/tu-pagina'
+      },
+      {
+        key: 'socialYoutubeUrl',
+        label: 'YouTube URL',
+        type: 'text',
+        required: false,
+        colSpan: 2,
+        tab: 'general',
+        placeholder: 'https://youtube.com/@tu-canal'
+      },
+      {
+        key: 'socialXUrl',
+        label: 'X URL',
+        type: 'text',
+        required: false,
+        colSpan: 2,
+        tab: 'general',
+        placeholder: 'https://x.com/tu-cuenta'
+      },
+      {
         key: 'seoModules',
         label: 'Modulos SEO',
         description: 'Activa o desactiva modulos SEO globales. Esta configuracion aplica a todo el sitio.',

@@ -14,12 +14,31 @@ Tienda deportiva mobile-first con carrito, checkout por WhatsApp, panel administ
 
 - Node.js 18+ (recomendado 20+)
 - npm
+- En Linux Debian, herramientas de compilacion para dependencias nativas (`sharp`, `sqlite3`):
+  - `python3`
+  - `build-essential` (`make`, `g++`)
+  - `sqlite3` (CLI opcional, util para backups)
+
+### Requisitos Debian (referencia)
+
+```bash
+sudo apt update
+sudo apt install -y curl ca-certificates python3 build-essential sqlite3
+```
 
 ## Instalacion
 
 ```bash
 npm install
 ```
+
+## Ejecucion local
+
+```bash
+npm start
+```
+
+Servidor por defecto: `http://localhost:3000`
 
 ## Scripts
 
@@ -33,12 +52,22 @@ npm install
 - `PORT` (default `3000`)
 - `STORE_NAME` (default `SLStore`)
 - `WHATSAPP_NUMBER` (default `5491112345678`)
+- `NODE_ENV` (recomendado `production` en servidor)
 
 Ejemplo:
 
 ```bash
 PORT=3000 STORE_NAME=SLStore WHATSAPP_NUMBER=5491112345678 npm run dev
 ```
+
+## Despliegue basico en Debian
+
+1. Instalar Node.js 20+ y dependencias del sistema.
+2. Clonar el repo e instalar paquetes con `npm install`.
+3. Ejecutar `npm start` (compila Tailwind y levanta Express).
+4. Publicar detras de Nginx o Apache como reverse proxy.
+5. Ejecutar como servicio (`systemd` o PM2).
+6. Configurar backups de `data/store.sqlite` y `public/uploads/`.
 
 ## URLs principales
 
@@ -80,6 +109,7 @@ Se crean automaticamente en `initDb()` si no existen.
 
 - Header y footer del sitio: `public/parts/header.html` y `public/parts/footer.html`
 - Inyeccion dinamica desde `public/js/layout.js`
+- El nombre de tienda (`storeName`) se hidrata de forma dinamica desde `/api/site-config` en elementos con `data-store-name`
 
 ## Carga y gestion de imagenes
 
@@ -159,6 +189,7 @@ Publica:
 - `GET /api/products/:id`
 - `POST /api/orders`
 - `GET /api/pages/:slug`
+- `GET /api/site-config`
 
 Panel CRUD:
 
@@ -167,6 +198,7 @@ Panel CRUD:
 - `GET /api/panel/settings`
 - `PUT /api/panel/settings/:id`
 - `GET/POST/PUT/DELETE /api/panel/categories`
+- `GET /api/panel/orders/:id`
 - `GET/POST/PUT/DELETE /api/panel/product-images`
 - `GET/POST/PUT/DELETE /api/panel/pages`
 - `GET/POST/PUT/DELETE /api/panel/products`
