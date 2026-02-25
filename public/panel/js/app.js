@@ -1,4 +1,3 @@
-const TOKEN_KEY = 'panel_token';
 const API_BASE = '/api/panel';
 
 const viewConfig = {
@@ -922,8 +921,13 @@ function getConfig() {
   return viewConfig[activeView];
 }
 
-function getAuthToken() {
-  return localStorage.getItem(TOKEN_KEY);
+async function ensurePanelSession() {
+  const response = await fetch('/api/panel/session');
+  if (!response.ok) {
+    window.location.replace('/panel/login.html');
+    return null;
+  }
+  return response.json().catch(() => null);
 }
 
 function getDashboardRefreshSeconds() {
@@ -1758,12 +1762,6 @@ function addOgImageUrl(url, makePrimary = false) {
 }
 
 async function uploadSeoImage(file, entityId = 'open-graph') {
-  const token = getAuthToken();
-  if (!token) {
-    window.location.replace('/panel/login.html');
-    return '';
-  }
-
   const safeEntityId = String(entityId || 'open-graph').trim() || 'open-graph';
   const data = new FormData();
   data.append('entityType', 'seo');
@@ -1777,9 +1775,6 @@ async function uploadSeoImage(file, entityId = 'open-graph') {
 
   const response = await fetch(`/api/panel/uploads/image?${query}`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`
-    },
     body: data
   });
 
@@ -2275,12 +2270,6 @@ function setProductUploadProgress({ active = false, current = 0, total = 0, mess
 }
 
 async function uploadImageFile(file, entityOrProductId = null, maybeEntityId = null) {
-  const token = getAuthToken();
-  if (!token) {
-    window.location.replace('/panel/login.html');
-    return null;
-  }
-
   let entityType = null;
   let entityId = null;
   if (typeof entityOrProductId === 'string') {
@@ -2308,9 +2297,6 @@ async function uploadImageFile(file, entityOrProductId = null, maybeEntityId = n
 
   const response = await fetch(`/api/panel/uploads/image${query}`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`
-    },
     body: data
   });
 
@@ -2320,12 +2306,6 @@ async function uploadImageFile(file, entityOrProductId = null, maybeEntityId = n
 }
 
 async function uploadImageFiles(files, entityOrProductId = null, maybeEntityId = null) {
-  const token = getAuthToken();
-  if (!token) {
-    window.location.replace('/panel/login.html');
-    return [];
-  }
-
   let entityType = null;
   let entityId = null;
   if (typeof entityOrProductId === 'string') {
@@ -2353,9 +2333,6 @@ async function uploadImageFiles(files, entityOrProductId = null, maybeEntityId =
 
   const response = await fetch(`/api/panel/uploads/images${query}`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`
-    },
     body: data
   });
 
@@ -3948,22 +3925,19 @@ function closeForm() {
 }
 
 async function requestJson(url, options = {}) {
-  const token = getAuthToken();
-  if (!token) {
-    window.location.replace('/panel/login.html');
-    return null;
-  }
-
   const response = await fetch(url, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      ...(options.headers || {}),
-      Authorization: `Bearer ${token}`
+      ...(options.headers || {})
     }
   });
 
   const data = await response.json().catch(() => ({}));
+  if (response.status === 401) {
+    window.location.replace('/panel/login.html');
+    return null;
+  }
   if (!response.ok) throw new Error(data.error || 'Error de API.');
   return data;
 }
@@ -4265,9 +4239,8 @@ async function setupLayoutParts() {
 
   const logoutBtn = document.getElementById('logout-btn');
   if (logoutBtn) {
-    logoutBtn.addEventListener('click', () => {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem('panel_user');
+    logoutBtn.addEventListener('click', async () => {
+      await fetch('/api/panel/logout', { method: 'POST' }).catch(() => null);
       window.location.replace('/panel/login.html');
     });
   }
@@ -4280,6 +4253,7 @@ async function setupLayoutParts() {
 }
 
 async function bootstrap() {
+  await ensurePanelSession();
   await setupLayoutParts();
   await switchView(getInitialPanelView());
 

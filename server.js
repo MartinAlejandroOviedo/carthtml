@@ -2,6 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
 const multer = require('multer');
 const sharp = require('sharp');
 const { buildSeoMetaTags, buildProductSocialMetaTags, injectSocialMetaIntoHtml } = require('./mod/social-meta');
@@ -57,8 +58,11 @@ const {
 } = require('./src/db');
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 const WHATSAPP_NUMBER = process.env.WHATSAPP_NUMBER || '5491112345678';
+const PANEL_SESSION_COOKIE = 'panel_session';
+const PANEL_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const uploadDir = path.join(__dirname, 'public', 'uploads');
 const typedImagesDir = path.join(uploadDir, 'images');
 const IMAGE_VARIANTS = {
@@ -73,6 +77,7 @@ let cachedSecuritySettings = null;
 let cachedSecuritySettingsAt = 0;
 const SECURITY_SETTINGS_CACHE_MS = 5000;
 const rateLimitBuckets = new Map();
+const panelSessions = new Map();
 
 function parseProductId(raw) {
   const value = Number(raw);
@@ -111,6 +116,106 @@ function parseClientIp(req) {
     .split(',')[0]
     .trim();
   return forwarded || req.ip || req.socket?.remoteAddress || 'unknown';
+}
+
+function parseCookies(headerValue) {
+  const source = String(headerValue || '');
+  if (!source) return {};
+  return source.split(';').reduce((acc, entry) => {
+    const [rawKey, ...rawValueParts] = entry.split('=');
+    const key = String(rawKey || '').trim();
+    if (!key) return acc;
+    const value = rawValueParts.join('=').trim();
+    try {
+      acc[key] = decodeURIComponent(value || '');
+    } catch (_error) {
+      acc[key] = value || '';
+    }
+    return acc;
+  }, {});
+}
+
+function getPanelSessionToken(req) {
+  const cookies = parseCookies(req.headers?.cookie || '');
+  return String(cookies[PANEL_SESSION_COOKIE] || '').trim();
+}
+
+function createPanelSession(user) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = Date.now() + PANEL_SESSION_TTL_MS;
+  panelSessions.set(token, {
+    userId: Number(user?.id || 0),
+    username: String(user?.username || '').trim(),
+    role: String(user?.role || 'admin').trim() || 'admin',
+    expiresAt
+  });
+  return { token, expiresAt };
+}
+
+function cleanupExpiredPanelSessions() {
+  const now = Date.now();
+  for (const [token, session] of panelSessions.entries()) {
+    if (!session || Number(session.expiresAt || 0) <= now) {
+      panelSessions.delete(token);
+    }
+  }
+}
+
+function setPanelSessionCookie(res, token, expiresAt) {
+  const isSecure = process.env.NODE_ENV === 'production';
+  res.cookie(PANEL_SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: isSecure,
+    path: '/',
+    expires: new Date(expiresAt)
+  });
+}
+
+function clearPanelSessionCookie(res) {
+  const isSecure = process.env.NODE_ENV === 'production';
+  res.clearCookie(PANEL_SESSION_COOKIE, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: isSecure,
+    path: '/'
+  });
+}
+
+function getPanelSession(req) {
+  const token = getPanelSessionToken(req);
+  if (!token) return null;
+  const session = panelSessions.get(token);
+  if (!session) return null;
+  if (Number(session.expiresAt || 0) <= Date.now()) {
+    panelSessions.delete(token);
+    return null;
+  }
+  return { token, ...session };
+}
+
+function requirePanelAuth(req, res, next) {
+  const security = req.runtimeSecurity || {
+    rateLimitWindowSec: 60,
+    rateLimitMax: 120
+  };
+
+  const decision = checkRateLimit({
+    scope: 'panel-api',
+    req,
+    maxRequests: security.rateLimitMax,
+    windowSec: security.rateLimitWindowSec
+  });
+  if (!decision.allowed) {
+    return res.status(429).json({ error: 'Demasiadas solicitudes al panel. Intenta nuevamente en unos segundos.' });
+  }
+
+  const session = getPanelSession(req);
+  if (!session) {
+    return res.status(401).json({ error: 'Sesion requerida.' });
+  }
+  req.panelSession = session;
+  return next();
 }
 
 async function loadSecuritySettings(force = false) {
@@ -296,6 +401,80 @@ function uniqueFileName(targetDir, originalName) {
   return candidate;
 }
 
+const ALLOWED_UPLOAD_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif']);
+
+function detectImageTypeFromMagic(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 12) return '';
+
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a
+  ) {
+    return 'image/png';
+  }
+  if (
+    buffer[0] === 0x52 &&
+    buffer[1] === 0x49 &&
+    buffer[2] === 0x46 &&
+    buffer[3] === 0x46 &&
+    buffer[8] === 0x57 &&
+    buffer[9] === 0x45 &&
+    buffer[10] === 0x42 &&
+    buffer[11] === 0x50
+  ) {
+    return 'image/webp';
+  }
+  if (
+    buffer[4] === 0x66 &&
+    buffer[5] === 0x74 &&
+    buffer[6] === 0x79 &&
+    buffer[7] === 0x70 &&
+    buffer[8] === 0x61 &&
+    buffer[9] === 0x76 &&
+    buffer[10] === 0x69 &&
+    buffer[11] === 0x66
+  ) {
+    return 'image/avif';
+  }
+
+  return '';
+}
+
+async function validateUploadedFileType(file) {
+  const mimeType = String(file?.mimetype || '').toLowerCase();
+  if (!ALLOWED_UPLOAD_MIME_TYPES.has(mimeType)) {
+    return { ok: false, reason: 'Tipo de imagen no permitido. Solo JPG, PNG, WEBP o AVIF.' };
+  }
+  try {
+    const fd = await fs.promises.open(file.path, 'r');
+    const buffer = Buffer.alloc(16);
+    await fd.read(buffer, 0, 16, 0);
+    await fd.close();
+    const detected = detectImageTypeFromMagic(buffer);
+    if (!detected) {
+      return { ok: false, reason: 'No se pudo verificar el formato real de la imagen.' };
+    }
+    if (!ALLOWED_UPLOAD_MIME_TYPES.has(detected)) {
+      return { ok: false, reason: 'Formato de imagen bloqueado por politica de seguridad.' };
+    }
+    if (detected !== mimeType) {
+      return { ok: false, reason: 'El tipo de archivo no coincide con su contenido real.' };
+    }
+    return { ok: true };
+  } catch (_error) {
+    return { ok: false, reason: 'No se pudo validar la imagen subida.' };
+  }
+}
+
 function publicUrlForUpload(uploadContext, fileName) {
   if (uploadContext && uploadContext.entityType && uploadContext.entityId) {
     return `/uploads/images/${uploadContext.entityType}/${uploadContext.entityId}/${fileName}`;
@@ -424,7 +603,8 @@ const imageUpload = multer({
   }),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype && file.mimetype.startsWith('image/')) return cb(null, true);
+    const mimeType = String(file?.mimetype || '').toLowerCase();
+    if (ALLOWED_UPLOAD_MIME_TYPES.has(mimeType)) return cb(null, true);
     return cb(new Error('Solo se permiten archivos de imagen.'));
   }
 });
@@ -432,6 +612,7 @@ const imageUpload = multer({
 app.use(express.json());
 
 app.use(async (req, res, next) => {
+  cleanupExpiredPanelSessions();
   const security = await loadSecuritySettings();
   req.runtimeSecurity = security;
 
@@ -933,19 +1114,56 @@ app.post('/api/panel/login', async (req, res) => {
       return res.status(400).json({ error: 'Usuario y clave son obligatorios.' });
     }
 
+    const loginDecision = checkRateLimit({
+      scope: 'panel-login',
+      req,
+      maxRequests: 20,
+      windowSec: 10 * 60
+    });
+    if (!loginDecision.allowed) {
+      return res.status(429).json({ error: 'Demasiados intentos de login. Espera antes de reintentar.' });
+    }
+
     const user = await authenticateUser(username, password);
     if (!user) {
       return res.status(401).json({ error: 'Credenciales invalidas.' });
     }
-
+    const session = createPanelSession(user);
+    setPanelSessionCookie(res, session.token, session.expiresAt);
     return res.json({
-      token: `panel-${user.id}-${Date.now()}`,
+      ok: true,
       user
     });
   } catch (error) {
     return res.status(500).json({ error: 'No se pudo iniciar sesion.' });
   }
 });
+
+app.post('/api/panel/logout', (req, res) => {
+  const token = getPanelSessionToken(req);
+  if (token) {
+    panelSessions.delete(token);
+  }
+  clearPanelSessionCookie(res);
+  return res.json({ ok: true });
+});
+
+app.get('/api/panel/session', (req, res) => {
+  const session = getPanelSession(req);
+  if (!session) {
+    return res.status(401).json({ error: 'Sesion requerida.' });
+  }
+  return res.json({
+    ok: true,
+    user: {
+      id: session.userId,
+      username: session.username,
+      role: session.role
+    }
+  });
+});
+
+app.use('/api/panel', requirePanelAuth);
 
 app.get('/api/panel/dashboard-summary', async (_req, res) => {
   try {
@@ -1027,6 +1245,16 @@ app.post('/api/panel/uploads/image', (req, res) => {
       return res.status(400).json({ error: 'No se recibió archivo.' });
     }
 
+    const validation = await validateUploadedFileType(req.file);
+    if (!validation.ok) {
+      try {
+        await fs.promises.unlink(req.file.path);
+      } catch (_unlinkError) {
+        // best effort
+      }
+      return res.status(400).json({ error: validation.reason });
+    }
+
     const uploadContext = parseUploadContext(req);
     const url = publicUrlForUpload(uploadContext, req.file.filename);
     let variants = { sliderUrl: url, cardUrl: url };
@@ -1058,6 +1286,18 @@ app.post('/api/panel/uploads/images', (req, res) => {
 
     if (!Array.isArray(req.files) || !req.files.length) {
       return res.status(400).json({ error: 'No se recibieron archivos.' });
+    }
+
+    for (const file of req.files) {
+      const validation = await validateUploadedFileType(file);
+      if (!validation.ok) {
+        try {
+          await fs.promises.unlink(file.path);
+        } catch (_unlinkError) {
+          // best effort
+        }
+        return res.status(400).json({ error: validation.reason });
+      }
     }
 
     const uploadContext = parseUploadContext(req);

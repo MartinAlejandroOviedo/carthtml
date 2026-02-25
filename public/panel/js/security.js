@@ -1,30 +1,30 @@
-const TOKEN_KEY = 'panel_token';
-
 const topbarRoot = document.getElementById('panel-topbar');
 const navRoot = document.getElementById('panel-nav');
 const contentRoot = document.getElementById('security-content');
 
-function getAuthToken() {
-  return localStorage.getItem(TOKEN_KEY) || '';
-}
-
-async function requestJson(url, options = {}) {
-  const token = getAuthToken();
-  if (!token) {
+async function ensurePanelSession() {
+  const response = await fetch('/api/panel/session');
+  if (!response.ok) {
     window.location.replace('/panel/login.html');
     return null;
   }
+  return response.json().catch(() => null);
+}
 
+async function requestJson(url, options = {}) {
   const response = await fetch(url, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      ...(options.headers || {}),
-      Authorization: `Bearer ${token}`
+      ...(options.headers || {})
     }
   });
 
   const data = await response.json().catch(() => ({}));
+  if (response.status === 401) {
+    window.location.replace('/panel/login.html');
+    return null;
+  }
   if (!response.ok) throw new Error(data.error || 'Error de API.');
   return data;
 }
@@ -57,9 +57,8 @@ async function setupLayoutParts() {
 
   const logoutBtn = document.getElementById('logout-btn');
   if (logoutBtn) {
-    logoutBtn.addEventListener('click', () => {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem('panel_user');
+    logoutBtn.addEventListener('click', async () => {
+      await fetch('/api/panel/logout', { method: 'POST' }).catch(() => null);
       window.location.replace('/panel/login.html');
     });
   }
@@ -276,6 +275,7 @@ async function loadSecurityView() {
 }
 
 async function bootstrap() {
+  await ensurePanelSession();
   await setupLayoutParts();
   await loadSecurityView();
 }

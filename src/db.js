@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
+const bcrypt = require('bcryptjs');
 const { GOOGLE_2026_DEFAULTS, normalizeGoogle2026Text } = require('../mod/google-2026');
 const { SEO_IMAGES_DEFAULTS, normalizeSeoImagesText } = require('../mod/seo-images');
 const { SEO_TECH_FILES_DEFAULTS, normalizeSeoTechFileText } = require('../mod/seo-tech-files');
@@ -8,6 +9,12 @@ const { SEO_TECH_FILES_DEFAULTS, normalizeSeoTechFileText } = require('../mod/se
 const dbPath = path.join(__dirname, '..', 'data', 'store.sqlite');
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 const db = new sqlite3.Database(dbPath);
+db.serialize(() => {
+  db.run('PRAGMA journal_mode=WAL;');
+  db.run('PRAGMA synchronous=NORMAL;');
+  db.run('PRAGMA busy_timeout=5000;');
+  db.run('PRAGMA foreign_keys=ON;');
+});
 const UPLOADS_ROOT = path.join(__dirname, '..', 'public', 'uploads');
 
 const DEFAULT_CATEGORIES = [
@@ -31,6 +38,7 @@ const DEFAULT_ADMIN_USER = {
 const DEFAULT_STORE_NAME = process.env.STORE_NAME || 'SLStore';
 const DEFAULT_WHATSAPP_NUMBER = String(process.env.WHATSAPP_NUMBER || '5491112345678').replace(/\D+/g, '');
 const SHIPPING_FLAT_ARS = 9500;
+const BCRYPT_ROUNDS = 12;
 
 function buildAbsoluteUrl(baseUrl, resourcePath) {
   const rawBase = String(baseUrl || '').trim().replace(/\/+$/, '');
@@ -250,6 +258,16 @@ function formatCurrency(value) {
 
 function normalizeText(value, maxLength = 120) {
   return String(value || '').trim().slice(0, maxLength);
+}
+
+function looksLikePasswordHash(value) {
+  return /^\$2[aby]\$\d{2}\$/.test(String(value || ''));
+}
+
+async function hashPassword(rawPassword) {
+  const normalized = normalizeText(rawPassword, 120);
+  if (!normalized) return '';
+  return bcrypt.hash(normalized, BCRYPT_ROUNDS);
 }
 
 function normalizeFocalPercent(value, fallback = 50) {
@@ -1083,11 +1101,23 @@ async function seedPages() {
 }
 
 async function seedDefaultAdminUser() {
+  const passwordHash = await hashPassword(DEFAULT_ADMIN_USER.password);
   await run(
     `INSERT OR IGNORE INTO users (username, password, full_name, role, is_active)
      VALUES (?, ?, ?, ?, 1)`,
-    [DEFAULT_ADMIN_USER.username, DEFAULT_ADMIN_USER.password, DEFAULT_ADMIN_USER.fullName, DEFAULT_ADMIN_USER.role]
+    [DEFAULT_ADMIN_USER.username, passwordHash, DEFAULT_ADMIN_USER.fullName, DEFAULT_ADMIN_USER.role]
   );
+}
+
+async function migrateLegacyUserPasswords() {
+  const rows = await all('SELECT id, password FROM users');
+  for (const row of rows) {
+    const current = String(row?.password || '');
+    if (!current || looksLikePasswordHash(current)) continue;
+    const nextHash = await hashPassword(current);
+    if (!nextHash) continue;
+    await run('UPDATE users SET password = ? WHERE id = ?', [nextHash, row.id]);
+  }
 }
 
 async function seedSettings() {
@@ -1677,6 +1707,7 @@ async function initDb() {
   )`);
 
   await ensureSchemaMigrations();
+  await migrateLegacyUserPasswords();
   await seedDefaultCategories();
   await seedPages();
   await seedDefaultAdminUser();
@@ -1692,14 +1723,37 @@ async function authenticateUser(username, password) {
   if (!normalizedUsername || !normalizedPassword) return null;
 
   const user = await get(
-    `SELECT id, username, full_name as fullName, role, is_active as isActive
+    `SELECT id, username, password, full_name as fullName, role, is_active as isActive
      FROM users
-     WHERE lower(username) = lower(?) AND password = ?`,
-    [normalizedUsername, normalizedPassword]
+     WHERE lower(username) = lower(?)`,
+    [normalizedUsername]
   );
 
   if (!user || !Number(user.isActive)) return null;
-  return user;
+
+  const storedPassword = String(user.password || '');
+  let matches = false;
+
+  if (looksLikePasswordHash(storedPassword)) {
+    matches = await bcrypt.compare(normalizedPassword, storedPassword);
+  } else if (storedPassword) {
+    matches = storedPassword === normalizedPassword;
+    if (matches) {
+      const migratedHash = await hashPassword(normalizedPassword);
+      if (migratedHash) {
+        await run('UPDATE users SET password = ? WHERE id = ?', [migratedHash, user.id]);
+      }
+    }
+  }
+
+  if (!matches) return null;
+  return {
+    id: user.id,
+    username: user.username,
+    fullName: user.fullName,
+    role: user.role,
+    isActive: user.isActive
+  };
 }
 
 async function getPageBySlug(slug) {
@@ -3328,10 +3382,15 @@ async function createUser({ username, password, fullName, role = 'admin', isActi
     throw new Error('Datos de usuario incompletos.');
   }
 
+  const passwordHash = await hashPassword(normalizedPassword);
+  if (!passwordHash) {
+    throw new Error('No se pudo generar hash de contraseña.');
+  }
+
   const result = await run(
     `INSERT INTO users (username, password, full_name, role, is_active)
      VALUES (?, ?, ?, ?, ?)`,
-    [normalizedUsername, normalizedPassword, normalizedFullName, normalizedRole, normalizedIsActive]
+    [normalizedUsername, passwordHash, normalizedFullName, normalizedRole, normalizedIsActive]
   );
 
   return get(
@@ -3346,7 +3405,19 @@ async function updateUser(userId, { username, password, fullName, role, isActive
   if (!current) return null;
 
   const nextUsername = normalizeText(username ?? current.username, 80).toLowerCase();
-  const nextPassword = normalizeText(password ?? current.password, 120);
+  const incomingPassword = password === undefined ? null : normalizeText(password, 120);
+  let nextPassword = String(current.password || '');
+  if (incomingPassword !== null) {
+    nextPassword = await hashPassword(incomingPassword);
+    if (!nextPassword) {
+      throw new Error('Contraseña inválida.');
+    }
+  } else if (!looksLikePasswordHash(nextPassword)) {
+    nextPassword = await hashPassword(nextPassword);
+    if (!nextPassword) {
+      throw new Error('No se pudo migrar contraseña de usuario.');
+    }
+  }
   const nextFullName = normalizeText(fullName ?? current.full_name, 120);
   const nextRole = normalizeText(role ?? current.role, 40) || 'admin';
   const nextIsActive = isActive === undefined ? Number(current.is_active) : Number(isActive) ? 1 : 0;
