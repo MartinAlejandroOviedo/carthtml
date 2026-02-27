@@ -37,6 +37,28 @@ const DEFAULT_ADMIN_USER = {
 };
 const DEFAULT_STORE_NAME = process.env.STORE_NAME || 'SLStore';
 const DEFAULT_WHATSAPP_NUMBER = String(process.env.WHATSAPP_NUMBER || '5491112345678').replace(/\D+/g, '');
+const DEFAULT_TEMPLATE_HEADING_FONT = 'space-grotesk';
+const DEFAULT_TEMPLATE_BODY_FONT = 'inter';
+const DEFAULT_TEMPLATE_HEADING_COLOR = '#ffffff';
+const DEFAULT_TEMPLATE_BODY_COLOR = '#e2e8f0';
+const DEFAULT_TEMPLATE_HEADING_SCALE = 1;
+const DEFAULT_TEMPLATE_BODY_SIZE_PX = 16;
+const TEMPLATE_FONT_CHOICES = new Set([
+  'space-grotesk',
+  'barlow-condensed',
+  'bebas-neue',
+  'oswald',
+  'playfair-display',
+  'raleway',
+  'inter',
+  'manrope',
+  'roboto',
+  'lato',
+  'montserrat',
+  'poppins',
+  'nunito',
+  'source-sans-3'
+]);
 const SHIPPING_FLAT_ARS = 9500;
 const BCRYPT_ROUNDS = 12;
 
@@ -340,6 +362,42 @@ function normalizeTwitterHandle(value) {
   if (!raw) return '';
   const normalized = raw.replace(/\s+/g, '').replace(/^@+/, '').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 15);
   return normalized ? `@${normalized}` : '';
+}
+
+function normalizeTemplateFontChoice(value, fallback = DEFAULT_TEMPLATE_BODY_FONT) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .slice(0, 80);
+  if (TEMPLATE_FONT_CHOICES.has(normalized)) return normalized;
+  const fallbackKey = String(fallback || '')
+    .trim()
+    .toLowerCase();
+  return TEMPLATE_FONT_CHOICES.has(fallbackKey) ? fallbackKey : DEFAULT_TEMPLATE_BODY_FONT;
+}
+
+function normalizeHexColor(value, fallback) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  if (/^#[0-9a-f]{6}$/.test(normalized)) return normalized;
+  return String(fallback || DEFAULT_TEMPLATE_BODY_COLOR).toLowerCase();
+}
+
+function normalizeTemplateHeadingScale(value, fallback = DEFAULT_TEMPLATE_HEADING_SCALE) {
+  const parsed = Number(value);
+  if (Number.isFinite(parsed)) {
+    return Math.min(2, Math.max(0.8, Number(parsed.toFixed(2))));
+  }
+  return Number.isFinite(Number(fallback)) ? Number(fallback) : DEFAULT_TEMPLATE_HEADING_SCALE;
+}
+
+function normalizeTemplateBodySizePx(value, fallback = DEFAULT_TEMPLATE_BODY_SIZE_PX) {
+  const parsed = Number(value);
+  if (Number.isFinite(parsed)) {
+    return Math.min(24, Math.max(12, Math.round(parsed)));
+  }
+  return Number.isFinite(Number(fallback)) ? Number(fallback) : DEFAULT_TEMPLATE_BODY_SIZE_PX;
 }
 
 function normalizeSchemaType(value) {
@@ -760,8 +818,38 @@ async function ensureSchemaMigrations() {
   await addColumnIfMissing('settings', 'social_facebook_url', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('settings', 'social_youtube_url', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('settings', 'social_x_url', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'template_social_instagram_url', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'template_social_facebook_url', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'template_social_youtube_url', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'template_social_x_url', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'template_heading_font', `TEXT NOT NULL DEFAULT '${DEFAULT_TEMPLATE_HEADING_FONT}'`);
+  await addColumnIfMissing('settings', 'template_body_font', `TEXT NOT NULL DEFAULT '${DEFAULT_TEMPLATE_BODY_FONT}'`);
+  await addColumnIfMissing('settings', 'template_heading_color', `TEXT NOT NULL DEFAULT '${DEFAULT_TEMPLATE_HEADING_COLOR}'`);
+  await addColumnIfMissing('settings', 'template_body_color', `TEXT NOT NULL DEFAULT '${DEFAULT_TEMPLATE_BODY_COLOR}'`);
+  await addColumnIfMissing('settings', 'template_heading_scale', `REAL NOT NULL DEFAULT ${DEFAULT_TEMPLATE_HEADING_SCALE}`);
+  await addColumnIfMissing('settings', 'template_body_size_px', `INTEGER NOT NULL DEFAULT ${DEFAULT_TEMPLATE_BODY_SIZE_PX}`);
   await addColumnIfMissing('settings', 'store_logo_url', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('settings', 'store_favicon_url', "TEXT NOT NULL DEFAULT ''");
+  await run(
+    `UPDATE settings
+     SET
+       template_social_instagram_url = CASE
+         WHEN trim(template_social_instagram_url) = '' THEN social_instagram_url
+         ELSE template_social_instagram_url
+       END,
+       template_social_facebook_url = CASE
+         WHEN trim(template_social_facebook_url) = '' THEN social_facebook_url
+         ELSE template_social_facebook_url
+       END,
+       template_social_youtube_url = CASE
+         WHEN trim(template_social_youtube_url) = '' THEN social_youtube_url
+         ELSE template_social_youtube_url
+       END,
+       template_social_x_url = CASE
+         WHEN trim(template_social_x_url) = '' THEN social_x_url
+         ELSE template_social_x_url
+       END`
+  );
   await addColumnIfMissing('product_images', 'focal_x', 'INTEGER NOT NULL DEFAULT 50');
   await addColumnIfMissing('product_images', 'focal_y', 'INTEGER NOT NULL DEFAULT 50');
   await addColumnIfMissing('page_images', 'focal_x', 'INTEGER NOT NULL DEFAULT 50');
@@ -1572,6 +1660,16 @@ async function initDb() {
     social_facebook_url TEXT NOT NULL DEFAULT '',
     social_youtube_url TEXT NOT NULL DEFAULT '',
     social_x_url TEXT NOT NULL DEFAULT '',
+    template_social_instagram_url TEXT NOT NULL DEFAULT '',
+    template_social_facebook_url TEXT NOT NULL DEFAULT '',
+    template_social_youtube_url TEXT NOT NULL DEFAULT '',
+    template_social_x_url TEXT NOT NULL DEFAULT '',
+    template_heading_font TEXT NOT NULL DEFAULT 'space-grotesk',
+    template_body_font TEXT NOT NULL DEFAULT 'inter',
+    template_heading_color TEXT NOT NULL DEFAULT '#ffffff',
+    template_body_color TEXT NOT NULL DEFAULT '#e2e8f0',
+    template_heading_scale REAL NOT NULL DEFAULT 1,
+    template_body_size_px INTEGER NOT NULL DEFAULT 16,
     seo_social_meta_enabled INTEGER NOT NULL DEFAULT 1,
     seo_html_meta_enabled INTEGER NOT NULL DEFAULT 1,
     seo_open_graph_enabled INTEGER NOT NULL DEFAULT 1,
@@ -2446,6 +2544,16 @@ async function getSettings() {
       social_facebook_url as socialFacebookUrl,
       social_youtube_url as socialYoutubeUrl,
       social_x_url as socialXUrl,
+      template_social_instagram_url as templateSocialInstagramUrl,
+      template_social_facebook_url as templateSocialFacebookUrl,
+      template_social_youtube_url as templateSocialYoutubeUrl,
+      template_social_x_url as templateSocialXUrl,
+      template_heading_font as templateHeadingFont,
+      template_body_font as templateBodyFont,
+      template_heading_color as templateHeadingColor,
+      template_body_color as templateBodyColor,
+      template_heading_scale as templateHeadingScale,
+      template_body_size_px as templateBodySizePx,
       seo_social_meta_enabled as seoSocialMetaEnabled,
       seo_html_meta_enabled as seoHtmlMetaEnabled,
       seo_open_graph_enabled as seoOpenGraphEnabled,
@@ -2561,6 +2669,16 @@ async function getSettings() {
       social_facebook_url as socialFacebookUrl,
       social_youtube_url as socialYoutubeUrl,
       social_x_url as socialXUrl,
+      template_social_instagram_url as templateSocialInstagramUrl,
+      template_social_facebook_url as templateSocialFacebookUrl,
+      template_social_youtube_url as templateSocialYoutubeUrl,
+      template_social_x_url as templateSocialXUrl,
+      template_heading_font as templateHeadingFont,
+      template_body_font as templateBodyFont,
+      template_heading_color as templateHeadingColor,
+      template_body_color as templateBodyColor,
+      template_heading_scale as templateHeadingScale,
+      template_body_size_px as templateBodySizePx,
       seo_social_meta_enabled as seoSocialMetaEnabled,
       seo_html_meta_enabled as seoHtmlMetaEnabled,
       seo_open_graph_enabled as seoOpenGraphEnabled,
@@ -2677,6 +2795,16 @@ async function updateSettings({
   socialFacebookUrl,
   socialYoutubeUrl,
   socialXUrl,
+  templateSocialInstagramUrl,
+  templateSocialFacebookUrl,
+  templateSocialYoutubeUrl,
+  templateSocialXUrl,
+  templateHeadingFont,
+  templateBodyFont,
+  templateHeadingColor,
+  templateBodyColor,
+  templateHeadingScale,
+  templateBodySizePx,
   seoSocialMetaEnabled,
   seoHtmlMetaEnabled,
   seoOpenGraphEnabled,
@@ -2787,6 +2915,46 @@ async function updateSettings({
   const nextSocialFacebookUrl = normalizeText(socialFacebookUrl ?? current.socialFacebookUrl, 1000);
   const nextSocialYoutubeUrl = normalizeText(socialYoutubeUrl ?? current.socialYoutubeUrl, 1000);
   const nextSocialXUrl = normalizeText(socialXUrl ?? current.socialXUrl, 1000);
+  const nextTemplateSocialInstagramUrl = normalizeText(
+    templateSocialInstagramUrl ?? current.templateSocialInstagramUrl ?? current.socialInstagramUrl,
+    1000
+  );
+  const nextTemplateSocialFacebookUrl = normalizeText(
+    templateSocialFacebookUrl ?? current.templateSocialFacebookUrl ?? current.socialFacebookUrl,
+    1000
+  );
+  const nextTemplateSocialYoutubeUrl = normalizeText(
+    templateSocialYoutubeUrl ?? current.templateSocialYoutubeUrl ?? current.socialYoutubeUrl,
+    1000
+  );
+  const nextTemplateSocialXUrl = normalizeText(
+    templateSocialXUrl ?? current.templateSocialXUrl ?? current.socialXUrl,
+    1000
+  );
+  const nextTemplateHeadingFont = normalizeTemplateFontChoice(
+    templateHeadingFont ?? current.templateHeadingFont,
+    DEFAULT_TEMPLATE_HEADING_FONT
+  );
+  const nextTemplateBodyFont = normalizeTemplateFontChoice(
+    templateBodyFont ?? current.templateBodyFont,
+    DEFAULT_TEMPLATE_BODY_FONT
+  );
+  const nextTemplateHeadingColor = normalizeHexColor(
+    templateHeadingColor ?? current.templateHeadingColor,
+    DEFAULT_TEMPLATE_HEADING_COLOR
+  );
+  const nextTemplateBodyColor = normalizeHexColor(
+    templateBodyColor ?? current.templateBodyColor,
+    DEFAULT_TEMPLATE_BODY_COLOR
+  );
+  const nextTemplateHeadingScale = normalizeTemplateHeadingScale(
+    templateHeadingScale ?? current.templateHeadingScale,
+    DEFAULT_TEMPLATE_HEADING_SCALE
+  );
+  const nextTemplateBodySizePx = normalizeTemplateBodySizePx(
+    templateBodySizePx ?? current.templateBodySizePx,
+    DEFAULT_TEMPLATE_BODY_SIZE_PX
+  );
   let nextSeoSocialMetaEnabled =
     seoSocialMetaEnabled === undefined ? Number(current.seoSocialMetaEnabled) : Number(seoSocialMetaEnabled) ? 1 : 0;
   const nextSeoHtmlMetaEnabled =
@@ -3365,9 +3533,34 @@ async function updateSettings({
          social_facebook_url = ?,
          social_youtube_url = ?,
          social_x_url = ?,
+         template_social_instagram_url = ?,
+         template_social_facebook_url = ?,
+         template_social_youtube_url = ?,
+         template_social_x_url = ?,
+         template_heading_font = ?,
+         template_body_font = ?,
+         template_heading_color = ?,
+         template_body_color = ?,
+         template_heading_scale = ?,
+         template_body_size_px = ?,
          updated_at = datetime('now', 'localtime')
      WHERE id = 1`,
-    [nextSocialInstagramUrl, nextSocialFacebookUrl, nextSocialYoutubeUrl, nextSocialXUrl]
+    [
+      nextSocialInstagramUrl,
+      nextSocialFacebookUrl,
+      nextSocialYoutubeUrl,
+      nextSocialXUrl,
+      nextTemplateSocialInstagramUrl,
+      nextTemplateSocialFacebookUrl,
+      nextTemplateSocialYoutubeUrl,
+      nextTemplateSocialXUrl,
+      nextTemplateHeadingFont,
+      nextTemplateBodyFont,
+      nextTemplateHeadingColor,
+      nextTemplateBodyColor,
+      nextTemplateHeadingScale,
+      nextTemplateBodySizePx
+    ]
   );
 
   return getSettings();

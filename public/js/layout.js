@@ -1,6 +1,29 @@
 const partsCache = new Map();
 const CART_STORAGE_KEY = 'sport-cart-items';
 let siteConfigCache = null;
+const TEMPLATE_FONT_MAP = {
+  'space-grotesk': 'Space Grotesk',
+  'barlow-condensed': 'Barlow Condensed',
+  'bebas-neue': 'Bebas Neue',
+  oswald: 'Oswald',
+  'playfair-display': 'Playfair Display',
+  raleway: 'Raleway',
+  inter: 'Inter',
+  manrope: 'Manrope',
+  roboto: 'Roboto',
+  lato: 'Lato',
+  montserrat: 'Montserrat',
+  poppins: 'Poppins',
+  nunito: 'Nunito',
+  'source-sans-3': 'Source Sans 3'
+};
+const DEFAULT_TEMPLATE_HEADING_FONT = 'space-grotesk';
+const DEFAULT_TEMPLATE_BODY_FONT = 'inter';
+const DEFAULT_TEMPLATE_HEADING_COLOR = '#ffffff';
+const DEFAULT_TEMPLATE_BODY_COLOR = '#e2e8f0';
+const DEFAULT_TEMPLATE_HEADING_SCALE = 1;
+const DEFAULT_TEMPLATE_BODY_SIZE_PX = 16;
+let typographyObserver = null;
 
 async function loadPart(partName) {
   if (partsCache.has(partName)) {
@@ -23,6 +46,34 @@ function normalizeWhatsappNumber(value) {
     .slice(0, 20);
 }
 
+function normalizeTemplateFontKey(value, fallback) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  if (TEMPLATE_FONT_MAP[normalized]) return normalized;
+  return TEMPLATE_FONT_MAP[fallback] ? fallback : DEFAULT_TEMPLATE_BODY_FONT;
+}
+
+function normalizeHexColor(value, fallback) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  if (/^#[0-9a-f]{6}$/.test(normalized)) return normalized;
+  return String(fallback || DEFAULT_TEMPLATE_BODY_COLOR).toLowerCase();
+}
+
+function normalizeHeadingScale(value, fallback = DEFAULT_TEMPLATE_HEADING_SCALE) {
+  const parsed = Number(value);
+  if (Number.isFinite(parsed)) return Math.min(2, Math.max(0.8, Number(parsed.toFixed(2))));
+  return fallback;
+}
+
+function normalizeBodySizePx(value, fallback = DEFAULT_TEMPLATE_BODY_SIZE_PX) {
+  const parsed = Number(value);
+  if (Number.isFinite(parsed)) return Math.min(24, Math.max(12, Math.round(parsed)));
+  return fallback;
+}
+
 async function fetchSiteConfig() {
   if (siteConfigCache) return siteConfigCache;
   try {
@@ -37,7 +88,13 @@ async function fetchSiteConfig() {
       socialInstagramUrl: String(data?.socialInstagramUrl || '').trim(),
       socialFacebookUrl: String(data?.socialFacebookUrl || '').trim(),
       socialYoutubeUrl: String(data?.socialYoutubeUrl || '').trim(),
-      socialXUrl: String(data?.socialXUrl || '').trim()
+      socialXUrl: String(data?.socialXUrl || '').trim(),
+      templateHeadingFont: normalizeTemplateFontKey(data?.templateHeadingFont, DEFAULT_TEMPLATE_HEADING_FONT),
+      templateBodyFont: normalizeTemplateFontKey(data?.templateBodyFont, DEFAULT_TEMPLATE_BODY_FONT),
+      templateHeadingColor: normalizeHexColor(data?.templateHeadingColor, DEFAULT_TEMPLATE_HEADING_COLOR),
+      templateBodyColor: normalizeHexColor(data?.templateBodyColor, DEFAULT_TEMPLATE_BODY_COLOR),
+      templateHeadingScale: normalizeHeadingScale(data?.templateHeadingScale, DEFAULT_TEMPLATE_HEADING_SCALE),
+      templateBodySizePx: normalizeBodySizePx(data?.templateBodySizePx, DEFAULT_TEMPLATE_BODY_SIZE_PX)
     };
   } catch (_error) {
     siteConfigCache = {
@@ -48,10 +105,77 @@ async function fetchSiteConfig() {
       socialInstagramUrl: '',
       socialFacebookUrl: '',
       socialYoutubeUrl: '',
-      socialXUrl: ''
+      socialXUrl: '',
+      templateHeadingFont: DEFAULT_TEMPLATE_HEADING_FONT,
+      templateBodyFont: DEFAULT_TEMPLATE_BODY_FONT,
+      templateHeadingColor: DEFAULT_TEMPLATE_HEADING_COLOR,
+      templateBodyColor: DEFAULT_TEMPLATE_BODY_COLOR,
+      templateHeadingScale: DEFAULT_TEMPLATE_HEADING_SCALE,
+      templateBodySizePx: DEFAULT_TEMPLATE_BODY_SIZE_PX
     };
   }
   return siteConfigCache;
+}
+
+function applyHeadingScale(scale) {
+  const nextScale = normalizeHeadingScale(scale, DEFAULT_TEMPLATE_HEADING_SCALE);
+  document.querySelectorAll('.font-display').forEach((node) => {
+    if (!node.dataset.templateHeadingBasePx) {
+      const computed = Number.parseFloat(window.getComputedStyle(node).fontSize || '0');
+      if (Number.isFinite(computed) && computed > 0) {
+        node.dataset.templateHeadingBasePx = String(computed);
+      }
+    }
+    const base = Number.parseFloat(node.dataset.templateHeadingBasePx || '0');
+    if (!Number.isFinite(base) || base <= 0) return;
+    node.style.fontSize = `${(base * nextScale).toFixed(2)}px`;
+  });
+}
+
+function applyTemplateFonts(config) {
+  const headingKey = normalizeTemplateFontKey(config?.templateHeadingFont, DEFAULT_TEMPLATE_HEADING_FONT);
+  const bodyKey = normalizeTemplateFontKey(config?.templateBodyFont, DEFAULT_TEMPLATE_BODY_FONT);
+  const headingFamily = TEMPLATE_FONT_MAP[headingKey];
+  const bodyFamily = TEMPLATE_FONT_MAP[bodyKey];
+
+  const uniqueFamilies = [...new Set([headingFamily, bodyFamily])];
+  const familyParams = uniqueFamilies
+    .map((family) => `family=${encodeURIComponent(family).replace(/%20/g, '+')}:wght@400;500;600;700;800`)
+    .join('&');
+
+  let link = document.head.querySelector('#template-fonts-link');
+  if (!link) {
+    link = document.createElement('link');
+    link.id = 'template-fonts-link';
+    link.rel = 'stylesheet';
+    document.head.appendChild(link);
+  }
+  link.href = `https://fonts.googleapis.com/css2?${familyParams}&display=swap`;
+
+  document.documentElement.style.setProperty('--template-font-display', `"${headingFamily}", "Barlow Condensed", sans-serif`);
+  document.documentElement.style.setProperty('--template-font-body', `"${bodyFamily}", "Manrope", sans-serif`);
+  document.documentElement.style.setProperty(
+    '--template-font-display-color',
+    normalizeHexColor(config?.templateHeadingColor, DEFAULT_TEMPLATE_HEADING_COLOR)
+  );
+  document.documentElement.style.setProperty(
+    '--template-font-body-color',
+    normalizeHexColor(config?.templateBodyColor, DEFAULT_TEMPLATE_BODY_COLOR)
+  );
+  document.documentElement.style.setProperty(
+    '--template-font-body-size-px',
+    `${normalizeBodySizePx(config?.templateBodySizePx, DEFAULT_TEMPLATE_BODY_SIZE_PX)}px`
+  );
+  const headingScale = normalizeHeadingScale(config?.templateHeadingScale, DEFAULT_TEMPLATE_HEADING_SCALE);
+  applyHeadingScale(headingScale);
+  if (typographyObserver) {
+    typographyObserver.disconnect();
+    typographyObserver = null;
+  }
+  typographyObserver = new MutationObserver(() => {
+    applyHeadingScale(headingScale);
+  });
+  typographyObserver.observe(document.body, { childList: true, subtree: true });
 }
 
 function hydrateFooterSocialLinks(config) {
@@ -223,6 +347,7 @@ export async function injectLayout() {
 
   await Promise.all(tasks);
   const siteConfig = await fetchSiteConfig();
+  applyTemplateFonts(siteConfig);
   hydrateStoreName(siteConfig);
   applyFavicon(siteConfig);
   setupMobileHeaderMenu();

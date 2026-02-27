@@ -1077,10 +1077,16 @@ app.get('/api/site-config', async (_req, res) => {
       storeLogoUrl: String(settings?.storeLogoUrl || '').trim(),
       storeFaviconUrl: String(settings?.storeFaviconUrl || '').trim(),
       whatsappNumber,
-      socialInstagramUrl: String(settings?.socialInstagramUrl || '').trim(),
-      socialFacebookUrl: String(settings?.socialFacebookUrl || '').trim(),
-      socialYoutubeUrl: String(settings?.socialYoutubeUrl || '').trim(),
-      socialXUrl: String(settings?.socialXUrl || '').trim()
+      socialInstagramUrl: String(settings?.templateSocialInstagramUrl || settings?.socialInstagramUrl || '').trim(),
+      socialFacebookUrl: String(settings?.templateSocialFacebookUrl || settings?.socialFacebookUrl || '').trim(),
+      socialYoutubeUrl: String(settings?.templateSocialYoutubeUrl || settings?.socialYoutubeUrl || '').trim(),
+      socialXUrl: String(settings?.templateSocialXUrl || settings?.socialXUrl || '').trim(),
+      templateHeadingFont: String(settings?.templateHeadingFont || 'space-grotesk').trim(),
+      templateBodyFont: String(settings?.templateBodyFont || 'inter').trim(),
+      templateHeadingColor: String(settings?.templateHeadingColor || '#ffffff').trim(),
+      templateBodyColor: String(settings?.templateBodyColor || '#e2e8f0').trim(),
+      templateHeadingScale: Number(settings?.templateHeadingScale || 1),
+      templateBodySizePx: Number(settings?.templateBodySizePx || 16)
     });
   } catch (_error) {
     return res.json({
@@ -1093,7 +1099,13 @@ app.get('/api/site-config', async (_req, res) => {
       socialInstagramUrl: '',
       socialFacebookUrl: '',
       socialYoutubeUrl: '',
-      socialXUrl: ''
+      socialXUrl: '',
+      templateHeadingFont: 'space-grotesk',
+      templateBodyFont: 'inter',
+      templateHeadingColor: '#ffffff',
+      templateBodyColor: '#e2e8f0',
+      templateHeadingScale: 1,
+      templateBodySizePx: 16
     });
   }
 });

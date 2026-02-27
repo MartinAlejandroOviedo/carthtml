@@ -93,6 +93,7 @@ PORT=3000 STORE_NAME=SLStore WHATSAPP_NUMBER=5491112345678 npm run dev
 
 - `/panel`: dashboard CRUD
 - `/panel/index.html?view=products`: dashboard con vista inicial controlada por query
+- `/panel/index.html?view=template`: modulo de apariencia del template (branding y redes)
 - `/panel/security.html`: pagina de seguridad dentro del backend
 - `/panel/security` y `/panel/seguridad`: alias a `panel/security.html`
 - `/panel/login.html`: login

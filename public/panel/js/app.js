@@ -1,4 +1,20 @@
 const API_BASE = '/api/panel';
+const TEMPLATE_FONT_OPTIONS = [
+  { value: 'space-grotesk', label: 'Space Grotesk' },
+  { value: 'barlow-condensed', label: 'Barlow Condensed' },
+  { value: 'bebas-neue', label: 'Bebas Neue' },
+  { value: 'oswald', label: 'Oswald' },
+  { value: 'playfair-display', label: 'Playfair Display' },
+  { value: 'raleway', label: 'Raleway' },
+  { value: 'inter', label: 'Inter' },
+  { value: 'manrope', label: 'Manrope' },
+  { value: 'roboto', label: 'Roboto' },
+  { value: 'lato', label: 'Lato' },
+  { value: 'montserrat', label: 'Montserrat' },
+  { value: 'poppins', label: 'Poppins' },
+  { value: 'nunito', label: 'Nunito' },
+  { value: 'source-sans-3', label: 'Source Sans 3' }
+];
 
 const viewConfig = {
   dashboard: {
@@ -140,42 +156,6 @@ const viewConfig = {
         colSpan: 2,
         tab: 'general',
         placeholder: '5491112345678'
-      },
-      {
-        key: 'socialInstagramUrl',
-        label: 'Instagram URL',
-        type: 'text',
-        required: false,
-        colSpan: 2,
-        tab: 'general',
-        placeholder: 'https://instagram.com/tu-cuenta'
-      },
-      {
-        key: 'socialFacebookUrl',
-        label: 'Facebook URL',
-        type: 'text',
-        required: false,
-        colSpan: 2,
-        tab: 'general',
-        placeholder: 'https://facebook.com/tu-pagina'
-      },
-      {
-        key: 'socialYoutubeUrl',
-        label: 'YouTube URL',
-        type: 'text',
-        required: false,
-        colSpan: 2,
-        tab: 'general',
-        placeholder: 'https://youtube.com/@tu-canal'
-      },
-      {
-        key: 'socialXUrl',
-        label: 'X URL',
-        type: 'text',
-        required: false,
-        colSpan: 2,
-        tab: 'general',
-        placeholder: 'https://x.com/tu-cuenta'
       },
       {
         key: 'seoModules',
@@ -393,7 +373,7 @@ const viewConfig = {
         key: 'seoTwitterIntro',
         label: 'Twitter Cards',
         description:
-          'Configuracion global para tarjetas de X/Twitter con imagen y datos de cuenta. Soporta placeholders: {{title}}, {{description}}, {{url}}, {{image}}, {{store}}.',
+          'Configuracion de compartido de links de productos/paginas en X/Twitter (tarjetas y metadatos). Soporta placeholders: {{title}}, {{description}}, {{url}}, {{image}}, {{store}}.',
         type: 'section',
         colSpan: 2,
         tab: 'twitter-cards'
@@ -441,7 +421,7 @@ const viewConfig = {
       },
       {
         key: 'seoTwitterSiteHandle',
-        label: 'Twitter Site Handle',
+        label: 'X Site Handle (compartir links)',
         type: 'text',
         required: false,
         tab: 'twitter-cards',
@@ -449,7 +429,7 @@ const viewConfig = {
       },
       {
         key: 'seoTwitterCreatorHandle',
-        label: 'Twitter Creator Handle',
+        label: 'X Creator Handle (compartir links)',
         type: 'text',
         required: false,
         tab: 'twitter-cards',
@@ -715,6 +695,164 @@ const viewConfig = {
       }
     ]
   },
+  template: {
+    title: 'Template',
+    endpoint: 'settings',
+    idKey: 'id',
+    singleton: true,
+    tabs: [
+      { id: 'brand', label: 'Identidad' },
+      { id: 'fonts', label: 'Fuentes' },
+      { id: 'social', label: 'Redes' }
+    ],
+    columns: ['id', 'storeName', 'updatedAt'],
+    fields: [
+      {
+        key: 'templateIntro',
+        label: 'Apariencia de la plantilla',
+        description: 'Configura identidad visual y enlaces sociales del template activo.',
+        type: 'section',
+        colSpan: 2,
+        tab: 'brand'
+      },
+      { key: 'storeName', label: 'Nombre de tienda', type: 'text', required: true, colSpan: 2, tab: 'brand' },
+      {
+        key: 'storeLogoUrl',
+        label: 'Logo de tienda (URL)',
+        type: 'text',
+        required: false,
+        colSpan: 2,
+        tab: 'brand',
+        placeholder: '/uploads/logo-tienda.webp o https://...'
+      },
+      {
+        key: 'storeFaviconUrl',
+        label: 'Favicon (URL)',
+        type: 'text',
+        required: false,
+        colSpan: 2,
+        tab: 'brand',
+        placeholder: '/uploads/favicon.webp o https://...'
+      },
+      {
+        key: 'whatsappNumber',
+        label: 'Numero WhatsApp',
+        type: 'text',
+        required: true,
+        colSpan: 2,
+        tab: 'brand',
+        placeholder: '5491112345678'
+      },
+      {
+        key: 'templateFontsIntro',
+        label: 'Fuentes',
+        description: 'Selecciona fuentes Google para titulos y texto del sitio.',
+        type: 'section',
+        colSpan: 2,
+        tab: 'fonts'
+      },
+      {
+        key: 'templateHeadingFont',
+        label: 'Fuente de titulos',
+        type: 'select',
+        required: false,
+        colSpan: 2,
+        tab: 'fonts',
+        options: TEMPLATE_FONT_OPTIONS
+      },
+      {
+        key: 'templateBodyFont',
+        label: 'Fuente de texto',
+        type: 'select',
+        required: false,
+        colSpan: 2,
+        tab: 'fonts',
+        options: TEMPLATE_FONT_OPTIONS
+      },
+      {
+        key: 'templateHeadingColor',
+        label: 'Color de titulos',
+        type: 'color',
+        required: false,
+        tab: 'fonts'
+      },
+      {
+        key: 'templateBodyColor',
+        label: 'Color de texto',
+        type: 'color',
+        required: false,
+        tab: 'fonts'
+      },
+      {
+        key: 'templateHeadingScale',
+        label: 'Tamano titulos (escala)',
+        type: 'number',
+        required: false,
+        tab: 'fonts',
+        placeholder: '1.00',
+        helperText: 'Escala relativa. 1 = tamano original, 1.2 = +20%.',
+        step: '0.05',
+        min: '0.8',
+        max: '2'
+      },
+      {
+        key: 'templateBodySizePx',
+        label: 'Tamano texto (px)',
+        type: 'number',
+        required: false,
+        tab: 'fonts',
+        placeholder: '16',
+        helperText: 'Tamano base del texto en pixeles.',
+        step: '1',
+        min: '12',
+        max: '24'
+      },
+      {
+        key: 'templateSocialIntro',
+        label: 'Redes del vendedor',
+        description: 'URLs de contacto/perfil que se muestran en el sitio (header/footer).',
+        type: 'section',
+        colSpan: 2,
+        tab: 'social'
+      },
+      {
+        key: 'templateSocialInstagramUrl',
+        label: 'Instagram URL (vendedor)',
+        type: 'text',
+        required: false,
+        colSpan: 2,
+        tab: 'social',
+        placeholder: 'https://instagram.com/tu-cuenta'
+      },
+      {
+        key: 'templateSocialFacebookUrl',
+        label: 'Facebook URL (vendedor)',
+        type: 'text',
+        required: false,
+        colSpan: 2,
+        tab: 'social',
+        placeholder: 'https://facebook.com/tu-pagina'
+      },
+      {
+        key: 'templateSocialYoutubeUrl',
+        label: 'YouTube URL (vendedor)',
+        type: 'text',
+        required: false,
+        colSpan: 2,
+        tab: 'social',
+        placeholder: 'https://youtube.com/@tu-canal'
+      },
+      {
+        key: 'templateSocialXUrl',
+        label: 'X URL (vendedor)',
+        type: 'text',
+        required: false,
+        colSpan: 2,
+        tab: 'social',
+        placeholder: 'https://x.com/tu-cuenta'
+      }
+    ]
+  },
   users: {
     title: 'Usuarios',
     endpoint: 'users',
@@ -937,6 +1075,15 @@ function showMessage(message, isError = false) {
 
 function getConfig() {
   return viewConfig[activeView];
+}
+
+function isTemplateAppearanceView() {
+  return activeView === 'settings' || activeView === 'template';
+}
+
+function getSingletonFormTitle(cfg = getConfig()) {
+  if (!cfg?.singleton) return `Nuevo ${cfg?.title || 'registro'}`;
+  return activeView === 'template' ? 'Apariencia del template' : 'Configuracion global';
 }
 
 async function ensurePanelSession() {
@@ -2260,7 +2407,7 @@ function setupStoreLogoUI() {
       uploadBtn.disabled = true;
       uploadBtn.textContent = 'Subiendo...';
       try {
-        const uploadedUrl = await uploadImageFile(file, 'settings', 'store-logo');
+        const uploadedUrl = await uploadImageFile(file, activeView === 'template' ? 'template' : 'settings', 'store-logo');
         if (!uploadedUrl) throw new Error('No se recibió URL del logo.');
         urlInput.value = String(uploadedUrl).trim();
         fileInput.value = '';
@@ -2313,7 +2460,11 @@ function setupStoreFaviconUI() {
       uploadBtn.disabled = true;
       uploadBtn.textContent = 'Subiendo...';
       try {
-        const uploadedUrl = await uploadImageFile(file, 'settings', 'store-favicon');
+        const uploadedUrl = await uploadImageFile(
+          file,
+          activeView === 'template' ? 'template' : 'settings',
+          'store-favicon'
+        );
         if (!uploadedUrl) throw new Error('No se recibió URL del favicon.');
         urlInput.value = String(uploadedUrl).trim();
         fileInput.value = '';
@@ -3426,6 +3577,13 @@ function renderForm() {
       const lengthAttrs = hasLengthHint
         ? `data-length-target="${lengthHintId}" data-length-min="${hintMin}" data-length-max="${hintMax}"`
         : '';
+      const numericAttrs = [
+        field.min !== undefined ? `min="${field.min}"` : '',
+        field.max !== undefined ? `max="${field.max}"` : '',
+        field.step !== undefined ? `step="${field.step}"` : ''
+      ]
+        .filter(Boolean)
+        .join(' ');
       let optimalHint = '';
       if (hasLengthHint) {
         if (hintMin > 0 && hintMax > 0) {
@@ -3745,7 +3903,7 @@ function renderForm() {
         `;
       }
 
-      if (activeView === 'settings' && field.key === 'storeLogoUrl') {
+      if (isTemplateAppearanceView() && field.key === 'storeLogoUrl') {
         return `
           <div ${tabAttr} class="${colClass} ${tabClass} rounded-xl border border-white/10 bg-slate-950/40 p-3 space-y-3">
             <label class="text-sm text-slate-200">
@@ -3790,7 +3948,7 @@ function renderForm() {
         `;
       }
 
-      if (activeView === 'settings' && field.key === 'storeFaviconUrl') {
+      if (isTemplateAppearanceView() && field.key === 'storeFaviconUrl') {
         return `
           <div ${tabAttr} class="${colClass} ${tabClass} rounded-xl border border-white/10 bg-slate-950/40 p-3 space-y-3">
             <label class="text-sm text-slate-200">
@@ -3843,6 +4001,7 @@ function renderForm() {
             type="${field.type}"
             ${field.required ? 'required' : ''}
             ${placeholderAttr}
+            ${numericAttrs}
             ${lengthAttrs}
             class="mt-1 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm"
           />
@@ -3914,6 +4073,9 @@ function renderForm() {
     setupStoreFaviconUI();
     setupTechFilesSwitchesUI();
     setupSeoAltRegeneratorUI();
+  } else if (activeView === 'template') {
+    setupStoreLogoUI();
+    setupStoreFaviconUI();
   }
 
   if (activeView === 'product-images') {
@@ -4048,12 +4210,14 @@ function fillForm(item) {
       renderPageImagesManager(pageId);
     }
   }
-  if (activeView === 'settings') {
+  if (isTemplateAppearanceView()) {
     const storeLogoInput = formEl.elements.namedItem('storeLogoUrl');
     if (storeLogoInput) updateStoreLogoPreview(storeLogoInput.value);
     const storeFaviconInput = formEl.elements.namedItem('storeFaviconUrl');
     if (storeFaviconInput) updateStoreFaviconPreview(storeFaviconInput.value);
-    applyTechFilesSwitchState();
+    if (activeView === 'settings') {
+      applyTechFilesSwitchState();
+    }
   }
 
   formEl.querySelectorAll('[data-length-target]').forEach((input) => {
@@ -4108,20 +4272,24 @@ function clearForm() {
     renderPageUploadPreview([]);
     setProductUploadProgress({ active: false, message: 'Sin tareas pendientes.' });
   }
-  if (activeView === 'settings') {
-    renderOgImagesList();
-    renderTwitterImagePreview();
-    renderHreflangList();
+  if (isTemplateAppearanceView()) {
+    if (activeView === 'settings') {
+      renderOgImagesList();
+      renderTwitterImagePreview();
+      renderHreflangList();
+    }
     updateStoreLogoPreview('');
     updateStoreFaviconPreview('');
-    applyTechFilesSwitchState();
+    if (activeView === 'settings') {
+      applyTechFilesSwitchState();
+    }
   }
   formEl.querySelectorAll('[data-length-target]').forEach((input) => {
     updateLengthHint(input);
   });
   showMessage('Formulario limpio.');
   if (formTitle) {
-    formTitle.textContent = cfg.singleton ? 'Configuracion global' : `Nuevo ${cfg.title}`;
+    formTitle.textContent = getSingletonFormTitle(cfg);
   }
 }
 
@@ -4302,7 +4470,7 @@ async function renderRows() {
       if (!row) return;
       editingId = id;
       fillForm(row);
-      if (formTitle) formTitle.textContent = cfg.singleton ? 'Configuracion global' : `Editar ${cfg.title}`;
+      if (formTitle) formTitle.textContent = cfg.singleton ? getSingletonFormTitle(cfg) : `Editar ${cfg.title}`;
       if (!settingsInlineMode) {
         openForm();
       }
@@ -4379,7 +4547,7 @@ async function saveItem() {
       });
       editingId = singletonId;
       if (saved) fillForm(saved);
-      showMessage('Configuracion actualizada.');
+      showMessage(`${cfg.title} actualizado.`);
       await hydratePanelBrand();
       await renderRows();
       if (saveBtn) {
@@ -4467,7 +4635,7 @@ async function switchView(nextView) {
   clearBtn.classList.toggle('hidden', isDashboard);
   refreshBtn.classList.remove('hidden');
   if (formTitle) {
-    formTitle.textContent = cfg.singleton ? 'Configuracion global' : `Nuevo ${cfg.title}`;
+    formTitle.textContent = getSingletonFormTitle(cfg);
   }
   renderForm();
   renderTableHead();
@@ -4490,11 +4658,11 @@ async function switchView(nextView) {
       editingId = singletonId;
     }
     fillForm(first);
-    if (formTitle) formTitle.textContent = 'Configuracion global';
+    if (formTitle) formTitle.textContent = getSingletonFormTitle(cfg);
     if (!settingsInlineMode) {
       openForm();
     }
-    showMessage('Configuracion cargada.');
+    showMessage(`${cfg.title} cargado.`);
   }
 }
 
