@@ -767,6 +767,7 @@ const viewConfig = {
         required: false,
         colSpan: 2,
         tab: 'fonts',
+        defaultValue: 'space-grotesk',
         options: TEMPLATE_FONT_OPTIONS
       },
       {
@@ -776,6 +777,7 @@ const viewConfig = {
         required: false,
         colSpan: 2,
         tab: 'fonts',
+        defaultValue: 'inter',
         options: TEMPLATE_FONT_OPTIONS
       },
       {
@@ -783,6 +785,7 @@ const viewConfig = {
         label: 'Color de titulos',
         type: 'color',
         required: false,
+        defaultValue: '#ffffff',
         tab: 'fonts'
       },
       {
@@ -790,6 +793,7 @@ const viewConfig = {
         label: 'Color de texto',
         type: 'color',
         required: false,
+        defaultValue: '#e2e8f0',
         tab: 'fonts'
       },
       {
@@ -798,6 +802,7 @@ const viewConfig = {
         type: 'number',
         required: false,
         tab: 'fonts',
+        defaultValue: 32,
         placeholder: '32',
         helperText: 'Solo titulos. Valor en pixeles.',
         step: '1',
@@ -810,6 +815,7 @@ const viewConfig = {
         type: 'number',
         required: false,
         tab: 'fonts',
+        defaultValue: 16,
         placeholder: '16',
         helperText: 'Solo texto general. No modifica los titulos.',
         step: '1',
@@ -1597,7 +1603,9 @@ function setFieldValue(field, input, value) {
     input.checked = Number(value) === 1 || value === true || value === '1';
     return;
   }
-  input.value = value ?? '';
+  const nextValue =
+    value === undefined || value === null || value === '' ? (field.defaultValue !== undefined ? field.defaultValue : '') : value;
+  input.value = nextValue;
 }
 
 function updateLengthHint(input) {
@@ -4283,6 +4291,9 @@ function fillForm(item) {
     if (storeLogoInput) updateStoreLogoPreview(storeLogoInput.value);
     const storeFaviconInput = formEl.elements.namedItem('storeFaviconUrl');
     if (storeFaviconInput) updateStoreFaviconPreview(storeFaviconInput.value);
+    if (activeView === 'template') {
+      setupTemplateFontsPreviewUI();
+    }
     if (activeView === 'settings') {
       applyTechFilesSwitchState();
     }
@@ -4350,6 +4361,8 @@ function clearForm() {
     updateStoreFaviconPreview('');
     if (activeView === 'settings') {
       applyTechFilesSwitchState();
+    } else if (activeView === 'template') {
+      setupTemplateFontsPreviewUI();
     }
   }
   formEl.querySelectorAll('[data-length-target]').forEach((input) => {
