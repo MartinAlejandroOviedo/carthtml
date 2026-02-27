@@ -1087,7 +1087,8 @@ app.get('/api/site-config', async (_req, res) => {
       templateBodyColor: String(settings?.templateBodyColor || '#e2e8f0').trim(),
       templateHeadingScale: Number(settings?.templateHeadingScale || 1),
       templateHeadingSizePx: Number(settings?.templateHeadingSizePx || 32),
-      templateBodySizePx: Number(settings?.templateBodySizePx || 16)
+      templateBodySizePx: Number(settings?.templateBodySizePx || 16),
+      templateGoogleAnalyticsId: String(settings?.templateGoogleAnalyticsId || '').trim()
     });
   } catch (_error) {
     return res.json({
@@ -1107,7 +1108,8 @@ app.get('/api/site-config', async (_req, res) => {
       templateBodyColor: '#e2e8f0',
       templateHeadingScale: 1,
       templateHeadingSizePx: 32,
-      templateBodySizePx: 16
+      templateBodySizePx: 16,
+      templateGoogleAnalyticsId: ''
     });
   }
 });

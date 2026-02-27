@@ -377,6 +377,19 @@ function normalizeTemplateFontChoice(value, fallback = DEFAULT_TEMPLATE_BODY_FON
   return TEMPLATE_FONT_CHOICES.has(fallbackKey) ? fallbackKey : DEFAULT_TEMPLATE_BODY_FONT;
 }
 
+function normalizeGoogleAnalyticsId(value) {
+  const raw = String(value || '')
+    .trim()
+    .toUpperCase();
+  if (!raw) return '';
+
+  const extracted = raw.match(/\bG-[A-Z0-9]{4,20}\b/);
+  if (extracted) return extracted[0];
+
+  if (/^G-[A-Z0-9]{4,20}$/.test(raw)) return raw;
+  return '';
+}
+
 function normalizeHexColor(value, fallback) {
   const normalized = String(value || '')
     .trim()
@@ -838,6 +851,7 @@ async function ensureSchemaMigrations() {
   await addColumnIfMissing('settings', 'template_heading_scale', `REAL NOT NULL DEFAULT ${DEFAULT_TEMPLATE_HEADING_SCALE}`);
   await addColumnIfMissing('settings', 'template_heading_size_px', `INTEGER NOT NULL DEFAULT ${DEFAULT_TEMPLATE_HEADING_SIZE_PX}`);
   await addColumnIfMissing('settings', 'template_body_size_px', `INTEGER NOT NULL DEFAULT ${DEFAULT_TEMPLATE_BODY_SIZE_PX}`);
+  await addColumnIfMissing('settings', 'template_google_analytics_id', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('settings', 'store_logo_url', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('settings', 'store_favicon_url', "TEXT NOT NULL DEFAULT ''");
   await run(
@@ -1681,6 +1695,7 @@ async function initDb() {
     template_heading_scale REAL NOT NULL DEFAULT 1,
     template_heading_size_px INTEGER NOT NULL DEFAULT 32,
     template_body_size_px INTEGER NOT NULL DEFAULT 16,
+    template_google_analytics_id TEXT NOT NULL DEFAULT '',
     seo_social_meta_enabled INTEGER NOT NULL DEFAULT 1,
     seo_html_meta_enabled INTEGER NOT NULL DEFAULT 1,
     seo_open_graph_enabled INTEGER NOT NULL DEFAULT 1,
@@ -2566,6 +2581,7 @@ async function getSettings() {
       template_heading_scale as templateHeadingScale,
       template_heading_size_px as templateHeadingSizePx,
       template_body_size_px as templateBodySizePx,
+      template_google_analytics_id as templateGoogleAnalyticsId,
       seo_social_meta_enabled as seoSocialMetaEnabled,
       seo_html_meta_enabled as seoHtmlMetaEnabled,
       seo_open_graph_enabled as seoOpenGraphEnabled,
@@ -2692,6 +2708,7 @@ async function getSettings() {
       template_heading_scale as templateHeadingScale,
       template_heading_size_px as templateHeadingSizePx,
       template_body_size_px as templateBodySizePx,
+      template_google_analytics_id as templateGoogleAnalyticsId,
       seo_social_meta_enabled as seoSocialMetaEnabled,
       seo_html_meta_enabled as seoHtmlMetaEnabled,
       seo_open_graph_enabled as seoOpenGraphEnabled,
@@ -2819,6 +2836,7 @@ async function updateSettings({
   templateHeadingScale,
   templateHeadingSizePx,
   templateBodySizePx,
+  templateGoogleAnalyticsId,
   seoSocialMetaEnabled,
   seoHtmlMetaEnabled,
   seoOpenGraphEnabled,
@@ -2972,6 +2990,9 @@ async function updateSettings({
   const nextTemplateBodySizePx = normalizeTemplateBodySizePx(
     templateBodySizePx ?? current.templateBodySizePx,
     DEFAULT_TEMPLATE_BODY_SIZE_PX
+  );
+  const nextTemplateGoogleAnalyticsId = normalizeGoogleAnalyticsId(
+    templateGoogleAnalyticsId ?? current.templateGoogleAnalyticsId
   );
   let nextSeoSocialMetaEnabled =
     seoSocialMetaEnabled === undefined ? Number(current.seoSocialMetaEnabled) : Number(seoSocialMetaEnabled) ? 1 : 0;
@@ -3562,6 +3583,7 @@ async function updateSettings({
          template_heading_scale = ?,
          template_heading_size_px = ?,
          template_body_size_px = ?,
+         template_google_analytics_id = ?,
          updated_at = datetime('now', 'localtime')
      WHERE id = 1`,
     [
@@ -3579,7 +3601,8 @@ async function updateSettings({
       nextTemplateBodyColor,
       nextTemplateHeadingScale,
       nextTemplateHeadingSizePx,
-      nextTemplateBodySizePx
+      nextTemplateBodySizePx,
+      nextTemplateGoogleAnalyticsId
     ]
   );
 

@@ -752,6 +752,24 @@ const viewConfig = {
         placeholder: '5491112345678'
       },
       {
+        key: 'templateAnalyticsIntro',
+        label: 'Analitica',
+        description: 'Configura Google Analytics para medir visitas y origen del trafico.',
+        type: 'section',
+        colSpan: 2,
+        tab: 'brand'
+      },
+      {
+        key: 'templateGoogleAnalyticsId',
+        label: 'Google Analytics ID (GA4)',
+        type: 'text',
+        required: false,
+        colSpan: 2,
+        tab: 'brand',
+        placeholder: 'G-XXXXXXXXXX',
+        helperText: 'Ejemplo: G-AB12CD34EF. Dejalo vacio para desactivar tracking.'
+      },
+      {
         key: 'templateFontsIntro',
         label: 'Fuentes',
         description:

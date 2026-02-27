@@ -74,6 +74,16 @@ function normalizeBodySizePx(value, fallback = DEFAULT_TEMPLATE_BODY_SIZE_PX) {
   return fallback;
 }
 
+function normalizeGoogleAnalyticsId(value) {
+  const raw = String(value || '')
+    .trim()
+    .toUpperCase();
+  if (!raw) return '';
+  const extracted = raw.match(/\bG-[A-Z0-9]{4,20}\b/);
+  if (extracted) return extracted[0];
+  return /^G-[A-Z0-9]{4,20}$/.test(raw) ? raw : '';
+}
+
 async function fetchSiteConfig() {
   if (siteConfigCache) return siteConfigCache;
   try {
@@ -97,7 +107,8 @@ async function fetchSiteConfig() {
         data?.templateHeadingSizePx || Number(data?.templateHeadingScale || 1) * DEFAULT_TEMPLATE_HEADING_SIZE_PX,
         DEFAULT_TEMPLATE_HEADING_SIZE_PX
       ),
-      templateBodySizePx: normalizeBodySizePx(data?.templateBodySizePx, DEFAULT_TEMPLATE_BODY_SIZE_PX)
+      templateBodySizePx: normalizeBodySizePx(data?.templateBodySizePx, DEFAULT_TEMPLATE_BODY_SIZE_PX),
+      templateGoogleAnalyticsId: normalizeGoogleAnalyticsId(data?.templateGoogleAnalyticsId)
     };
   } catch (_error) {
     siteConfigCache = {
@@ -114,10 +125,32 @@ async function fetchSiteConfig() {
       templateHeadingColor: DEFAULT_TEMPLATE_HEADING_COLOR,
       templateBodyColor: DEFAULT_TEMPLATE_BODY_COLOR,
       templateHeadingSizePx: DEFAULT_TEMPLATE_HEADING_SIZE_PX,
-      templateBodySizePx: DEFAULT_TEMPLATE_BODY_SIZE_PX
+      templateBodySizePx: DEFAULT_TEMPLATE_BODY_SIZE_PX,
+      templateGoogleAnalyticsId: ''
     };
   }
   return siteConfigCache;
+}
+
+function injectGoogleAnalytics(config) {
+  const measurementId = normalizeGoogleAnalyticsId(config?.templateGoogleAnalyticsId);
+  if (!measurementId) return;
+
+  let script = document.getElementById('template-ga-script');
+  if (!script) {
+    script = document.createElement('script');
+    script.id = 'template-ga-script';
+    script.async = true;
+    document.head.appendChild(script);
+  }
+  script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(measurementId)}`;
+
+  if (!Array.isArray(window.dataLayer)) window.dataLayer = [];
+  window.gtag = window.gtag || function gtag() {
+    window.dataLayer.push(arguments);
+  };
+  window.gtag('js', new Date());
+  window.gtag('config', measurementId);
 }
 
 function applyHeadingSizePx(sizePx) {
@@ -343,6 +376,7 @@ export async function injectLayout() {
   await Promise.all(tasks);
   const siteConfig = await fetchSiteConfig();
   applyTemplateFonts(siteConfig);
+  injectGoogleAnalytics(siteConfig);
   hydrateStoreName(siteConfig);
   applyFavicon(siteConfig);
   setupMobileHeaderMenu();
