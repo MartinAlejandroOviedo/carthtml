@@ -54,6 +54,7 @@ function setupPanelNavButtons() {
 async function setupLayoutParts() {
   topbarRoot.innerHTML = await loadPart('/panel/parts/topbar.html');
   navRoot.innerHTML = await loadPart('/panel/parts/nav.html');
+  await hydratePanelBrand();
 
   const logoutBtn = document.getElementById('logout-btn');
   if (logoutBtn) {
@@ -65,6 +66,62 @@ async function setupLayoutParts() {
 
   setupPanelNavButtons();
   markSecurityNavActive();
+}
+
+async function hydratePanelBrand() {
+  const nameNode = document.querySelector('[data-panel-store-name]');
+  const logoNode = document.querySelector('[data-panel-store-logo]');
+  if (!nameNode && !logoNode) return;
+
+  let storeName = 'SLStore';
+  let storeLogoUrl = '';
+  let storeFaviconUrl = '';
+  try {
+    const response = await fetch('/api/site-config');
+    if (response.ok) {
+      const data = await response.json();
+      storeName = String(data?.storeName || 'SLStore').trim() || 'SLStore';
+      storeLogoUrl = String(data?.storeLogoUrl || '').trim();
+      storeFaviconUrl = String(data?.storeFaviconUrl || '').trim();
+    }
+  } catch (_error) {
+    // Keep default name if site config cannot be loaded.
+  }
+
+  if (storeFaviconUrl) {
+    const rels = ['icon', 'shortcut icon', 'apple-touch-icon'];
+    rels.forEach((rel) => {
+      let link = document.head.querySelector(`link[rel="${rel}"]`);
+      if (!link) {
+        link = document.createElement('link');
+        link.setAttribute('rel', rel);
+        document.head.appendChild(link);
+      }
+      link.setAttribute('href', storeFaviconUrl);
+    });
+  }
+
+  if (nameNode) {
+    nameNode.textContent = `Panel ${storeName}`;
+  }
+
+  if (logoNode) {
+    if (storeLogoUrl) {
+      logoNode.onerror = () => {
+        logoNode.classList.add('hidden');
+        logoNode.setAttribute('aria-hidden', 'true');
+      };
+      logoNode.src = storeLogoUrl;
+      logoNode.alt = storeName;
+      logoNode.classList.remove('hidden');
+      logoNode.removeAttribute('aria-hidden');
+    } else {
+      logoNode.classList.add('hidden');
+      logoNode.setAttribute('aria-hidden', 'true');
+      logoNode.removeAttribute('src');
+      logoNode.removeAttribute('alt');
+    }
+  }
 }
 
 function renderMessage(message, isError = false) {

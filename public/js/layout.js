@@ -31,6 +31,8 @@ async function fetchSiteConfig() {
     const data = await response.json();
     siteConfigCache = {
       storeName: String(data?.storeName || 'SLStore').trim(),
+      storeLogoUrl: String(data?.storeLogoUrl || '').trim(),
+      storeFaviconUrl: String(data?.storeFaviconUrl || '').trim(),
       whatsappNumber: normalizeWhatsappNumber(data?.whatsappNumber || ''),
       socialInstagramUrl: String(data?.socialInstagramUrl || '').trim(),
       socialFacebookUrl: String(data?.socialFacebookUrl || '').trim(),
@@ -40,6 +42,8 @@ async function fetchSiteConfig() {
   } catch (_error) {
     siteConfigCache = {
       storeName: 'SLStore',
+      storeLogoUrl: '',
+      storeFaviconUrl: '',
       whatsappNumber: '5491112345678',
       socialInstagramUrl: '',
       socialFacebookUrl: '',
@@ -77,6 +81,41 @@ function hydrateStoreName(config) {
   const storeName = String(config?.storeName || '').trim() || 'SLStore';
   document.querySelectorAll('[data-store-name]').forEach((node) => {
     node.textContent = storeName;
+  });
+
+  const storeLogoUrl = String(config?.storeLogoUrl || '').trim();
+  document.querySelectorAll('[data-store-logo]').forEach((node) => {
+    if (storeLogoUrl) {
+      node.src = storeLogoUrl;
+      node.alt = storeName;
+      node.classList.remove('hidden');
+      node.removeAttribute('aria-hidden');
+      node.onerror = () => {
+        node.classList.add('hidden');
+        node.setAttribute('aria-hidden', 'true');
+      };
+      return;
+    }
+    node.classList.add('hidden');
+    node.setAttribute('aria-hidden', 'true');
+    node.removeAttribute('src');
+    node.removeAttribute('alt');
+  });
+}
+
+function applyFavicon(config) {
+  const href = String(config?.storeFaviconUrl || '').trim();
+  if (!href) return;
+
+  const rels = ['icon', 'shortcut icon', 'apple-touch-icon'];
+  rels.forEach((rel) => {
+    let link = document.head.querySelector(`link[rel="${rel}"]`);
+    if (!link) {
+      link = document.createElement('link');
+      link.setAttribute('rel', rel);
+      document.head.appendChild(link);
+    }
+    link.setAttribute('href', href);
   });
 }
 
@@ -152,6 +191,7 @@ export async function injectLayout() {
   await Promise.all(tasks);
   const siteConfig = await fetchSiteConfig();
   hydrateStoreName(siteConfig);
+  applyFavicon(siteConfig);
   injectFloatingWhatsappButton(siteConfig);
   hydrateFooterSocialLinks(siteConfig);
 

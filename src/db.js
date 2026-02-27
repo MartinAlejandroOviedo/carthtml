@@ -760,6 +760,8 @@ async function ensureSchemaMigrations() {
   await addColumnIfMissing('settings', 'social_facebook_url', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('settings', 'social_youtube_url', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('settings', 'social_x_url', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'store_logo_url', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('settings', 'store_favicon_url', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('product_images', 'focal_x', 'INTEGER NOT NULL DEFAULT 50');
   await addColumnIfMissing('product_images', 'focal_y', 'INTEGER NOT NULL DEFAULT 50');
   await addColumnIfMissing('page_images', 'focal_x', 'INTEGER NOT NULL DEFAULT 50');
@@ -1563,6 +1565,8 @@ async function initDb() {
   await run(`CREATE TABLE IF NOT EXISTS settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     store_name TEXT NOT NULL,
+    store_logo_url TEXT NOT NULL DEFAULT '',
+    store_favicon_url TEXT NOT NULL DEFAULT '',
     whatsapp_number TEXT NOT NULL,
     social_instagram_url TEXT NOT NULL DEFAULT '',
     social_facebook_url TEXT NOT NULL DEFAULT '',
@@ -2435,6 +2439,8 @@ async function getSettings() {
     `SELECT
       id,
       store_name as storeName,
+      store_logo_url as storeLogoUrl,
+      store_favicon_url as storeFaviconUrl,
       whatsapp_number as whatsappNumber,
       social_instagram_url as socialInstagramUrl,
       social_facebook_url as socialFacebookUrl,
@@ -2548,6 +2554,8 @@ async function getSettings() {
     `SELECT
       id,
       store_name as storeName,
+      store_logo_url as storeLogoUrl,
+      store_favicon_url as storeFaviconUrl,
       whatsapp_number as whatsappNumber,
       social_instagram_url as socialInstagramUrl,
       social_facebook_url as socialFacebookUrl,
@@ -2662,6 +2670,8 @@ async function listSettings() {
 
 async function updateSettings({
   storeName,
+  storeLogoUrl,
+  storeFaviconUrl,
   whatsappNumber,
   socialInstagramUrl,
   socialFacebookUrl,
@@ -2770,6 +2780,8 @@ async function updateSettings({
   }
 
   const nextStoreName = normalizeText(storeName ?? current.storeName, 120);
+  const nextStoreLogoUrl = normalizeText(storeLogoUrl ?? current.storeLogoUrl, 1000);
+  const nextStoreFaviconUrl = normalizeText(storeFaviconUrl ?? current.storeFaviconUrl, 1000);
   const nextWhatsappNumber = normalizeWhatsappNumber(whatsappNumber ?? current.whatsappNumber);
   const nextSocialInstagramUrl = normalizeText(socialInstagramUrl ?? current.socialInstagramUrl, 1000);
   const nextSocialFacebookUrl = normalizeText(socialFacebookUrl ?? current.socialFacebookUrl, 1000);
@@ -3142,6 +3154,8 @@ async function updateSettings({
     `UPDATE settings
      SET
        store_name = ?,
+       store_logo_url = ?,
+       store_favicon_url = ?,
        whatsapp_number = ?,
        seo_social_meta_enabled = ?,
        seo_html_meta_enabled = ?,
@@ -3243,6 +3257,8 @@ async function updateSettings({
      WHERE id = 1`,
     [
       nextStoreName,
+      nextStoreLogoUrl,
+      nextStoreFaviconUrl,
       nextWhatsappNumber,
       nextSeoSocialMetaEnabled,
       nextSeoHtmlMetaEnabled,

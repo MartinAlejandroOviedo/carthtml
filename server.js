@@ -1074,6 +1074,8 @@ app.get('/api/site-config', async (_req, res) => {
       .slice(0, 20);
     return res.json({
       storeName,
+      storeLogoUrl: String(settings?.storeLogoUrl || '').trim(),
+      storeFaviconUrl: String(settings?.storeFaviconUrl || '').trim(),
       whatsappNumber,
       socialInstagramUrl: String(settings?.socialInstagramUrl || '').trim(),
       socialFacebookUrl: String(settings?.socialFacebookUrl || '').trim(),
@@ -1083,6 +1085,8 @@ app.get('/api/site-config', async (_req, res) => {
   } catch (_error) {
     return res.json({
       storeName: String(process.env.STORE_NAME || 'SLStore').trim(),
+      storeLogoUrl: '',
+      storeFaviconUrl: '',
       whatsappNumber: String(WHATSAPP_NUMBER || '')
         .replace(/\D+/g, '')
         .slice(0, 20),

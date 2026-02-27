@@ -115,6 +115,24 @@ const viewConfig = {
       },
       { key: 'storeName', label: 'Nombre de tienda', type: 'text', required: true, colSpan: 2, tab: 'general' },
       {
+        key: 'storeLogoUrl',
+        label: 'Logo de tienda (URL)',
+        type: 'text',
+        required: false,
+        colSpan: 2,
+        tab: 'general',
+        placeholder: '/uploads/logo-tienda.webp o https://...'
+      },
+      {
+        key: 'storeFaviconUrl',
+        label: 'Favicon (URL)',
+        type: 'text',
+        required: false,
+        colSpan: 2,
+        tab: 'general',
+        placeholder: '/uploads/favicon.webp o https://...'
+      },
+      {
         key: 'whatsappNumber',
         label: 'Numero WhatsApp',
         type: 'text',
@@ -2163,6 +2181,154 @@ function updateImagePreview(url) {
   }
 }
 
+function updateStoreLogoPreview(url) {
+  const previewEl = document.getElementById('store-logo-preview');
+  const emptyEl = document.getElementById('store-logo-empty');
+  const currentUrlEl = document.getElementById('store-logo-current-url');
+  if (!previewEl || !emptyEl || !currentUrlEl) return;
+
+  const normalized = String(url || '').trim();
+  if (normalized) {
+    previewEl.src = normalized;
+    previewEl.classList.remove('hidden');
+    emptyEl.classList.add('hidden');
+    currentUrlEl.textContent = normalized;
+    return;
+  }
+
+  previewEl.removeAttribute('src');
+  previewEl.classList.add('hidden');
+  emptyEl.classList.remove('hidden');
+  currentUrlEl.textContent = '';
+}
+
+function updateStoreFaviconPreview(url) {
+  const previewEl = document.getElementById('store-favicon-preview');
+  const emptyEl = document.getElementById('store-favicon-empty');
+  const currentUrlEl = document.getElementById('store-favicon-current-url');
+  if (!previewEl || !emptyEl || !currentUrlEl) return;
+
+  const normalized = String(url || '').trim();
+  if (normalized) {
+    previewEl.src = normalized;
+    previewEl.classList.remove('hidden');
+    emptyEl.classList.add('hidden');
+    currentUrlEl.textContent = normalized;
+    return;
+  }
+
+  previewEl.removeAttribute('src');
+  previewEl.classList.add('hidden');
+  emptyEl.classList.remove('hidden');
+  currentUrlEl.textContent = '';
+}
+
+function setupStoreLogoUI() {
+  const urlInput = formEl.elements.namedItem('storeLogoUrl');
+  const fileInput = document.getElementById('store-logo-file-input');
+  const uploadBtn = document.getElementById('store-logo-upload-btn');
+  const clearBtn = document.getElementById('store-logo-clear-btn');
+
+  if (!urlInput) return;
+  updateStoreLogoPreview(urlInput.value);
+
+  urlInput.addEventListener('input', () => {
+    updateStoreLogoPreview(urlInput.value);
+  });
+
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      urlInput.value = '';
+      if (fileInput) fileInput.value = '';
+      updateStoreLogoPreview('');
+      showMessage('Logo limpiado.');
+    });
+  }
+
+  if (uploadBtn && fileInput) {
+    uploadBtn.addEventListener('click', async () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) {
+        showMessage('Selecciona una imagen para el logo.', true);
+        return;
+      }
+      if (!String(file.type || '').startsWith('image/')) {
+        showMessage('El archivo debe ser una imagen.', true);
+        return;
+      }
+
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = 'Subiendo...';
+      try {
+        const uploadedUrl = await uploadImageFile(file, 'settings', 'store-logo');
+        if (!uploadedUrl) throw new Error('No se recibió URL del logo.');
+        urlInput.value = String(uploadedUrl).trim();
+        fileInput.value = '';
+        updateStoreLogoPreview(urlInput.value);
+        showMessage('Logo subido correctamente.');
+      } catch (error) {
+        showMessage(error.message, true);
+      } finally {
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = 'Subir logo';
+      }
+    });
+  }
+}
+
+function setupStoreFaviconUI() {
+  const urlInput = formEl.elements.namedItem('storeFaviconUrl');
+  const fileInput = document.getElementById('store-favicon-file-input');
+  const uploadBtn = document.getElementById('store-favicon-upload-btn');
+  const clearBtn = document.getElementById('store-favicon-clear-btn');
+
+  if (!urlInput) return;
+  updateStoreFaviconPreview(urlInput.value);
+
+  urlInput.addEventListener('input', () => {
+    updateStoreFaviconPreview(urlInput.value);
+  });
+
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      urlInput.value = '';
+      if (fileInput) fileInput.value = '';
+      updateStoreFaviconPreview('');
+      showMessage('Favicon limpiado.');
+    });
+  }
+
+  if (uploadBtn && fileInput) {
+    uploadBtn.addEventListener('click', async () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) {
+        showMessage('Selecciona una imagen para el favicon.', true);
+        return;
+      }
+      if (!String(file.type || '').startsWith('image/')) {
+        showMessage('El archivo debe ser una imagen.', true);
+        return;
+      }
+
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = 'Subiendo...';
+      try {
+        const uploadedUrl = await uploadImageFile(file, 'settings', 'store-favicon');
+        if (!uploadedUrl) throw new Error('No se recibió URL del favicon.');
+        urlInput.value = String(uploadedUrl).trim();
+        fileInput.value = '';
+        updateStoreFaviconPreview(urlInput.value);
+        showMessage('Favicon subido correctamente.');
+      } catch (error) {
+        showMessage(error.message, true);
+      } finally {
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = 'Subir favicon';
+      }
+    });
+  }
+}
+
 function renderMultiPreview(files) {
   const root = document.getElementById('images-preview-list');
   if (!root) return;
@@ -3579,6 +3745,96 @@ function renderForm() {
         `;
       }
 
+      if (activeView === 'settings' && field.key === 'storeLogoUrl') {
+        return `
+          <div ${tabAttr} class="${colClass} ${tabClass} rounded-xl border border-white/10 bg-slate-950/40 p-3 space-y-3">
+            <label class="text-sm text-slate-200">
+              ${field.label}
+              <input
+                name="${field.key}"
+                type="text"
+                ${field.required ? 'required' : ''}
+                ${placeholderAttr}
+                class="mt-1 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm"
+              />
+            </label>
+            <div class="grid gap-2 sm:grid-cols-2">
+              <label class="text-sm text-slate-200">
+                Subir imagen
+                <input id="store-logo-file-input" type="file" accept="image/*" class="file-picker mt-1 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm" />
+              </label>
+              <div class="rounded-xl border border-white/10 bg-slate-900/50 p-2">
+                <img id="store-logo-preview" alt="Preview logo" class="hidden h-16 w-full rounded-lg object-contain bg-slate-950/50 p-1" />
+                <p id="store-logo-empty" class="text-xs text-slate-400">Sin logo configurado.</p>
+                <p id="store-logo-current-url" class="mt-1 truncate text-[11px] text-slate-500"></p>
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                id="store-logo-upload-btn"
+                class="rounded-xl border border-sky-300/30 bg-sky-500/20 px-3 py-2 text-sm text-sky-100 transition hover:bg-sky-500/35"
+              >
+                Subir logo
+              </button>
+              <button
+                type="button"
+                id="store-logo-clear-btn"
+                class="rounded-xl border border-white/20 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-800/70"
+              >
+                Limpiar
+              </button>
+              <span class="text-xs text-slate-400">Se adapta al topbar con max 220x40.</span>
+            </div>
+          </div>
+        `;
+      }
+
+      if (activeView === 'settings' && field.key === 'storeFaviconUrl') {
+        return `
+          <div ${tabAttr} class="${colClass} ${tabClass} rounded-xl border border-white/10 bg-slate-950/40 p-3 space-y-3">
+            <label class="text-sm text-slate-200">
+              ${field.label}
+              <input
+                name="${field.key}"
+                type="text"
+                ${field.required ? 'required' : ''}
+                ${placeholderAttr}
+                class="mt-1 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm"
+              />
+            </label>
+            <div class="grid gap-2 sm:grid-cols-2">
+              <label class="text-sm text-slate-200">
+                Subir imagen
+                <input id="store-favicon-file-input" type="file" accept="image/*" class="file-picker mt-1 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm" />
+              </label>
+              <div class="rounded-xl border border-white/10 bg-slate-900/50 p-2">
+                <img id="store-favicon-preview" alt="Preview favicon" class="hidden h-12 w-12 rounded-lg object-contain bg-slate-950/50 p-1" />
+                <p id="store-favicon-empty" class="text-xs text-slate-400">Sin favicon configurado.</p>
+                <p id="store-favicon-current-url" class="mt-1 truncate text-[11px] text-slate-500"></p>
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                id="store-favicon-upload-btn"
+                class="rounded-xl border border-sky-300/30 bg-sky-500/20 px-3 py-2 text-sm text-sky-100 transition hover:bg-sky-500/35"
+              >
+                Subir favicon
+              </button>
+              <button
+                type="button"
+                id="store-favicon-clear-btn"
+                class="rounded-xl border border-white/20 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-800/70"
+              >
+                Limpiar
+              </button>
+              <span class="text-xs text-slate-400">Recomendado: 32x32 o 48x48.</span>
+            </div>
+          </div>
+        `;
+      }
+
       return `
         <label ${tabAttr} class="text-sm text-slate-200 ${colClass} ${tabClass}">
           ${field.label}
@@ -3654,6 +3910,8 @@ function renderForm() {
     setupOgImagesUI();
     setupTwitterImageUI();
     setupHreflangUI();
+    setupStoreLogoUI();
+    setupStoreFaviconUI();
     setupTechFilesSwitchesUI();
     setupSeoAltRegeneratorUI();
   }
@@ -3791,6 +4049,10 @@ function fillForm(item) {
     }
   }
   if (activeView === 'settings') {
+    const storeLogoInput = formEl.elements.namedItem('storeLogoUrl');
+    if (storeLogoInput) updateStoreLogoPreview(storeLogoInput.value);
+    const storeFaviconInput = formEl.elements.namedItem('storeFaviconUrl');
+    if (storeFaviconInput) updateStoreFaviconPreview(storeFaviconInput.value);
     applyTechFilesSwitchState();
   }
 
@@ -3850,6 +4112,8 @@ function clearForm() {
     renderOgImagesList();
     renderTwitterImagePreview();
     renderHreflangList();
+    updateStoreLogoPreview('');
+    updateStoreFaviconPreview('');
     applyTechFilesSwitchState();
   }
   formEl.querySelectorAll('[data-length-target]').forEach((input) => {
@@ -4116,6 +4380,7 @@ async function saveItem() {
       editingId = singletonId;
       if (saved) fillForm(saved);
       showMessage('Configuracion actualizada.');
+      await hydratePanelBrand();
       await renderRows();
       if (saveBtn) {
         saveBtn.disabled = false;
@@ -4236,6 +4501,7 @@ async function switchView(nextView) {
 async function setupLayoutParts() {
   topbarRoot.innerHTML = await loadPart('/panel/parts/topbar.html');
   navRoot.innerHTML = await loadPart('/panel/parts/nav.html');
+  await hydratePanelBrand();
 
   const logoutBtn = document.getElementById('logout-btn');
   if (logoutBtn) {
@@ -4250,6 +4516,62 @@ async function setupLayoutParts() {
       await switchView(btn.dataset.view);
     });
   });
+}
+
+async function hydratePanelBrand() {
+  const nameNode = document.querySelector('[data-panel-store-name]');
+  const logoNode = document.querySelector('[data-panel-store-logo]');
+  if (!nameNode && !logoNode) return;
+
+  let storeName = 'SLStore';
+  let storeLogoUrl = '';
+  let storeFaviconUrl = '';
+  try {
+    const response = await fetch('/api/site-config');
+    if (response.ok) {
+      const data = await response.json();
+      storeName = String(data?.storeName || 'SLStore').trim() || 'SLStore';
+      storeLogoUrl = String(data?.storeLogoUrl || '').trim();
+      storeFaviconUrl = String(data?.storeFaviconUrl || '').trim();
+    }
+  } catch (_error) {
+    // Fallback to default brand text on fetch errors.
+  }
+
+  if (storeFaviconUrl) {
+    const rels = ['icon', 'shortcut icon', 'apple-touch-icon'];
+    rels.forEach((rel) => {
+      let link = document.head.querySelector(`link[rel="${rel}"]`);
+      if (!link) {
+        link = document.createElement('link');
+        link.setAttribute('rel', rel);
+        document.head.appendChild(link);
+      }
+      link.setAttribute('href', storeFaviconUrl);
+    });
+  }
+
+  if (nameNode) {
+    nameNode.textContent = `Panel ${storeName}`;
+  }
+
+  if (logoNode) {
+    if (storeLogoUrl) {
+      logoNode.onerror = () => {
+        logoNode.classList.add('hidden');
+        logoNode.setAttribute('aria-hidden', 'true');
+      };
+      logoNode.src = storeLogoUrl;
+      logoNode.alt = storeName;
+      logoNode.classList.remove('hidden');
+      logoNode.removeAttribute('aria-hidden');
+    } else {
+      logoNode.classList.add('hidden');
+      logoNode.setAttribute('aria-hidden', 'true');
+      logoNode.removeAttribute('src');
+      logoNode.removeAttribute('alt');
+    }
+  }
 }
 
 async function bootstrap() {
