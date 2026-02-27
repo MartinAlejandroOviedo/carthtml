@@ -1086,6 +1086,7 @@ app.get('/api/site-config', async (_req, res) => {
       templateHeadingColor: String(settings?.templateHeadingColor || '#ffffff').trim(),
       templateBodyColor: String(settings?.templateBodyColor || '#e2e8f0').trim(),
       templateHeadingScale: Number(settings?.templateHeadingScale || 1),
+      templateHeadingSizePx: Number(settings?.templateHeadingSizePx || 32),
       templateBodySizePx: Number(settings?.templateBodySizePx || 16)
     });
   } catch (_error) {
@@ -1105,6 +1106,7 @@ app.get('/api/site-config', async (_req, res) => {
       templateHeadingColor: '#ffffff',
       templateBodyColor: '#e2e8f0',
       templateHeadingScale: 1,
+      templateHeadingSizePx: 32,
       templateBodySizePx: 16
     });
   }

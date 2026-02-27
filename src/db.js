@@ -42,6 +42,7 @@ const DEFAULT_TEMPLATE_BODY_FONT = 'inter';
 const DEFAULT_TEMPLATE_HEADING_COLOR = '#ffffff';
 const DEFAULT_TEMPLATE_BODY_COLOR = '#e2e8f0';
 const DEFAULT_TEMPLATE_HEADING_SCALE = 1;
+const DEFAULT_TEMPLATE_HEADING_SIZE_PX = 32;
 const DEFAULT_TEMPLATE_BODY_SIZE_PX = 16;
 const TEMPLATE_FONT_CHOICES = new Set([
   'space-grotesk',
@@ -382,6 +383,14 @@ function normalizeHexColor(value, fallback) {
     .toLowerCase();
   if (/^#[0-9a-f]{6}$/.test(normalized)) return normalized;
   return String(fallback || DEFAULT_TEMPLATE_BODY_COLOR).toLowerCase();
+}
+
+function normalizeTemplateHeadingSizePx(value, fallback = DEFAULT_TEMPLATE_HEADING_SIZE_PX) {
+  const parsed = Number(value);
+  if (Number.isFinite(parsed)) {
+    return Math.min(96, Math.max(18, Math.round(parsed)));
+  }
+  return Number.isFinite(Number(fallback)) ? Number(fallback) : DEFAULT_TEMPLATE_HEADING_SIZE_PX;
 }
 
 function normalizeTemplateHeadingScale(value, fallback = DEFAULT_TEMPLATE_HEADING_SCALE) {
@@ -827,6 +836,7 @@ async function ensureSchemaMigrations() {
   await addColumnIfMissing('settings', 'template_heading_color', `TEXT NOT NULL DEFAULT '${DEFAULT_TEMPLATE_HEADING_COLOR}'`);
   await addColumnIfMissing('settings', 'template_body_color', `TEXT NOT NULL DEFAULT '${DEFAULT_TEMPLATE_BODY_COLOR}'`);
   await addColumnIfMissing('settings', 'template_heading_scale', `REAL NOT NULL DEFAULT ${DEFAULT_TEMPLATE_HEADING_SCALE}`);
+  await addColumnIfMissing('settings', 'template_heading_size_px', `INTEGER NOT NULL DEFAULT ${DEFAULT_TEMPLATE_HEADING_SIZE_PX}`);
   await addColumnIfMissing('settings', 'template_body_size_px', `INTEGER NOT NULL DEFAULT ${DEFAULT_TEMPLATE_BODY_SIZE_PX}`);
   await addColumnIfMissing('settings', 'store_logo_url', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('settings', 'store_favicon_url', "TEXT NOT NULL DEFAULT ''");
@@ -1669,6 +1679,7 @@ async function initDb() {
     template_heading_color TEXT NOT NULL DEFAULT '#ffffff',
     template_body_color TEXT NOT NULL DEFAULT '#e2e8f0',
     template_heading_scale REAL NOT NULL DEFAULT 1,
+    template_heading_size_px INTEGER NOT NULL DEFAULT 32,
     template_body_size_px INTEGER NOT NULL DEFAULT 16,
     seo_social_meta_enabled INTEGER NOT NULL DEFAULT 1,
     seo_html_meta_enabled INTEGER NOT NULL DEFAULT 1,
@@ -2553,6 +2564,7 @@ async function getSettings() {
       template_heading_color as templateHeadingColor,
       template_body_color as templateBodyColor,
       template_heading_scale as templateHeadingScale,
+      template_heading_size_px as templateHeadingSizePx,
       template_body_size_px as templateBodySizePx,
       seo_social_meta_enabled as seoSocialMetaEnabled,
       seo_html_meta_enabled as seoHtmlMetaEnabled,
@@ -2678,6 +2690,7 @@ async function getSettings() {
       template_heading_color as templateHeadingColor,
       template_body_color as templateBodyColor,
       template_heading_scale as templateHeadingScale,
+      template_heading_size_px as templateHeadingSizePx,
       template_body_size_px as templateBodySizePx,
       seo_social_meta_enabled as seoSocialMetaEnabled,
       seo_html_meta_enabled as seoHtmlMetaEnabled,
@@ -2804,6 +2817,7 @@ async function updateSettings({
   templateHeadingColor,
   templateBodyColor,
   templateHeadingScale,
+  templateHeadingSizePx,
   templateBodySizePx,
   seoSocialMetaEnabled,
   seoHtmlMetaEnabled,
@@ -2950,6 +2964,10 @@ async function updateSettings({
   const nextTemplateHeadingScale = normalizeTemplateHeadingScale(
     templateHeadingScale ?? current.templateHeadingScale,
     DEFAULT_TEMPLATE_HEADING_SCALE
+  );
+  const nextTemplateHeadingSizePx = normalizeTemplateHeadingSizePx(
+    templateHeadingSizePx ?? current.templateHeadingSizePx,
+    DEFAULT_TEMPLATE_HEADING_SIZE_PX
   );
   const nextTemplateBodySizePx = normalizeTemplateBodySizePx(
     templateBodySizePx ?? current.templateBodySizePx,
@@ -3542,6 +3560,7 @@ async function updateSettings({
          template_heading_color = ?,
          template_body_color = ?,
          template_heading_scale = ?,
+         template_heading_size_px = ?,
          template_body_size_px = ?,
          updated_at = datetime('now', 'localtime')
      WHERE id = 1`,
@@ -3559,6 +3578,7 @@ async function updateSettings({
       nextTemplateHeadingColor,
       nextTemplateBodyColor,
       nextTemplateHeadingScale,
+      nextTemplateHeadingSizePx,
       nextTemplateBodySizePx
     ]
   );

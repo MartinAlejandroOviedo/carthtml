@@ -16,6 +16,14 @@ const TEMPLATE_FONT_OPTIONS = [
   { value: 'source-sans-3', label: 'Source Sans 3' }
 ];
 
+function resolveTemplateFontFamily(value) {
+  const key = String(value || '')
+    .trim()
+    .toLowerCase();
+  const match = TEMPLATE_FONT_OPTIONS.find((option) => option.value === key);
+  return match ? match.label : 'Inter';
+}
+
 const viewConfig = {
   dashboard: {
     title: 'Panel de control',
@@ -746,7 +754,8 @@ const viewConfig = {
       {
         key: 'templateFontsIntro',
         label: 'Fuentes',
-        description: 'Selecciona fuentes Google para titulos y texto del sitio.',
+        description:
+          'Configura fuentes y estilo tipografico del sitio. "Tamano de titulos (px)" afecta solo titulos. "Tamano base de texto (px)" afecta solo texto general.',
         type: 'section',
         colSpan: 2,
         tab: 'fonts'
@@ -784,25 +793,25 @@ const viewConfig = {
         tab: 'fonts'
       },
       {
-        key: 'templateHeadingScale',
-        label: 'Tamano titulos (escala)',
+        key: 'templateHeadingSizePx',
+        label: 'Tamano de titulos (px)',
         type: 'number',
         required: false,
         tab: 'fonts',
-        placeholder: '1.00',
-        helperText: 'Escala relativa. 1 = tamano original, 1.2 = +20%.',
-        step: '0.05',
-        min: '0.8',
-        max: '2'
+        placeholder: '32',
+        helperText: 'Solo titulos. Valor en pixeles.',
+        step: '1',
+        min: '18',
+        max: '96'
       },
       {
         key: 'templateBodySizePx',
-        label: 'Tamano texto (px)',
+        label: 'Tamano base de texto (px)',
         type: 'number',
         required: false,
         tab: 'fonts',
         placeholder: '16',
-        helperText: 'Tamano base del texto en pixeles.',
+        helperText: 'Solo texto general. No modifica los titulos.',
         step: '1',
         min: '12',
         max: '24'
@@ -3541,6 +3550,51 @@ function setupImageUploadUI() {
   }
 }
 
+function setupTemplateFontsPreviewUI() {
+  const root = document.getElementById('template-fonts-preview');
+  if (!root || !formEl) return;
+
+  const headingFontInput = formEl.elements.namedItem('templateHeadingFont');
+  const bodyFontInput = formEl.elements.namedItem('templateBodyFont');
+  const headingColorInput = formEl.elements.namedItem('templateHeadingColor');
+  const bodyColorInput = formEl.elements.namedItem('templateBodyColor');
+  const headingSizeInput = formEl.elements.namedItem('templateHeadingSizePx');
+  const bodySizeInput = formEl.elements.namedItem('templateBodySizePx');
+  const titleNode = document.getElementById('template-fonts-preview-title');
+  const textNode = document.getElementById('template-fonts-preview-text');
+  if (!titleNode || !textNode) return;
+
+  const applyPreview = () => {
+    const headingFamily = resolveTemplateFontFamily(headingFontInput ? headingFontInput.value : 'space-grotesk');
+    const bodyFamily = resolveTemplateFontFamily(bodyFontInput ? bodyFontInput.value : 'inter');
+    const headingColorRaw = String(headingColorInput ? headingColorInput.value : '#ffffff').trim().toLowerCase();
+    const bodyColorRaw = String(bodyColorInput ? bodyColorInput.value : '#e2e8f0').trim().toLowerCase();
+    const headingColor = /^#[0-9a-f]{6}$/.test(headingColorRaw) ? headingColorRaw : '#ffffff';
+    const bodyColor = /^#[0-9a-f]{6}$/.test(bodyColorRaw) ? bodyColorRaw : '#e2e8f0';
+    const headingSizePx = Number(headingSizeInput ? headingSizeInput.value : 32);
+    const bodySizePx = Number(bodySizeInput ? bodySizeInput.value : 16);
+    const nextHeadingSize = Number.isFinite(headingSizePx) ? Math.min(96, Math.max(18, headingSizePx)) : 32;
+    const nextBodySize = Number.isFinite(bodySizePx) ? Math.min(24, Math.max(12, bodySizePx)) : 16;
+
+    titleNode.style.fontFamily = `"${headingFamily}", "Barlow Condensed", sans-serif`;
+    titleNode.style.color = headingColor;
+    titleNode.style.fontSize = `${nextHeadingSize}px`;
+
+    textNode.style.fontFamily = `"${bodyFamily}", "Manrope", sans-serif`;
+    textNode.style.color = bodyColor;
+    textNode.style.fontSize = `${nextBodySize}px`;
+  };
+
+  [headingFontInput, bodyFontInput, headingColorInput, bodyColorInput, headingSizeInput, bodySizeInput]
+    .filter(Boolean)
+    .forEach((input) => {
+      input.addEventListener('input', applyPreview);
+      input.addEventListener('change', applyPreview);
+    });
+
+  applyPreview();
+}
+
 function renderForm() {
   const cfg = getConfig();
   const fields = Array.isArray(cfg.fields) ? cfg.fields : [];
@@ -4057,6 +4111,19 @@ function renderForm() {
     `;
   }
 
+  if (activeView === 'template') {
+    html += `
+      <div id="template-fonts-preview" data-field-tab="fonts" class="form-tab-item sm:col-span-2 rounded-xl border border-white/10 bg-slate-950/45 p-3">
+        <p class="text-xs uppercase tracking-wide text-slate-400">Vista previa</p>
+        <p class="mt-1 text-xs text-slate-400">Estos cambios impactan el sitio publico. En el panel se muestran como previsualizacion.</p>
+        <div class="mt-3 rounded-xl border border-white/10 bg-slate-900/60 p-3">
+          <p id="template-fonts-preview-title" class="font-display leading-tight">Titulo de ejemplo</p>
+          <p id="template-fonts-preview-text" class="font-body mt-2">Texto de ejemplo para validar legibilidad, color y tamano base.</p>
+        </div>
+      </div>
+    `;
+  }
+
   formEl.innerHTML = `${tabsHtml}${html}`;
 
   if (Array.isArray(cfg.tabs) && cfg.tabs.length) {
@@ -4076,6 +4143,7 @@ function renderForm() {
   } else if (activeView === 'template') {
     setupStoreLogoUI();
     setupStoreFaviconUI();
+    setupTemplateFontsPreviewUI();
   }
 
   if (activeView === 'product-images') {

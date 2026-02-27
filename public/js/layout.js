@@ -21,7 +21,7 @@ const DEFAULT_TEMPLATE_HEADING_FONT = 'space-grotesk';
 const DEFAULT_TEMPLATE_BODY_FONT = 'inter';
 const DEFAULT_TEMPLATE_HEADING_COLOR = '#ffffff';
 const DEFAULT_TEMPLATE_BODY_COLOR = '#e2e8f0';
-const DEFAULT_TEMPLATE_HEADING_SCALE = 1;
+const DEFAULT_TEMPLATE_HEADING_SIZE_PX = 32;
 const DEFAULT_TEMPLATE_BODY_SIZE_PX = 16;
 let typographyObserver = null;
 
@@ -62,9 +62,9 @@ function normalizeHexColor(value, fallback) {
   return String(fallback || DEFAULT_TEMPLATE_BODY_COLOR).toLowerCase();
 }
 
-function normalizeHeadingScale(value, fallback = DEFAULT_TEMPLATE_HEADING_SCALE) {
+function normalizeHeadingSizePx(value, fallback = DEFAULT_TEMPLATE_HEADING_SIZE_PX) {
   const parsed = Number(value);
-  if (Number.isFinite(parsed)) return Math.min(2, Math.max(0.8, Number(parsed.toFixed(2))));
+  if (Number.isFinite(parsed)) return Math.min(96, Math.max(18, Math.round(parsed)));
   return fallback;
 }
 
@@ -93,7 +93,10 @@ async function fetchSiteConfig() {
       templateBodyFont: normalizeTemplateFontKey(data?.templateBodyFont, DEFAULT_TEMPLATE_BODY_FONT),
       templateHeadingColor: normalizeHexColor(data?.templateHeadingColor, DEFAULT_TEMPLATE_HEADING_COLOR),
       templateBodyColor: normalizeHexColor(data?.templateBodyColor, DEFAULT_TEMPLATE_BODY_COLOR),
-      templateHeadingScale: normalizeHeadingScale(data?.templateHeadingScale, DEFAULT_TEMPLATE_HEADING_SCALE),
+      templateHeadingSizePx: normalizeHeadingSizePx(
+        data?.templateHeadingSizePx || Number(data?.templateHeadingScale || 1) * DEFAULT_TEMPLATE_HEADING_SIZE_PX,
+        DEFAULT_TEMPLATE_HEADING_SIZE_PX
+      ),
       templateBodySizePx: normalizeBodySizePx(data?.templateBodySizePx, DEFAULT_TEMPLATE_BODY_SIZE_PX)
     };
   } catch (_error) {
@@ -110,25 +113,17 @@ async function fetchSiteConfig() {
       templateBodyFont: DEFAULT_TEMPLATE_BODY_FONT,
       templateHeadingColor: DEFAULT_TEMPLATE_HEADING_COLOR,
       templateBodyColor: DEFAULT_TEMPLATE_BODY_COLOR,
-      templateHeadingScale: DEFAULT_TEMPLATE_HEADING_SCALE,
+      templateHeadingSizePx: DEFAULT_TEMPLATE_HEADING_SIZE_PX,
       templateBodySizePx: DEFAULT_TEMPLATE_BODY_SIZE_PX
     };
   }
   return siteConfigCache;
 }
 
-function applyHeadingScale(scale) {
-  const nextScale = normalizeHeadingScale(scale, DEFAULT_TEMPLATE_HEADING_SCALE);
+function applyHeadingSizePx(sizePx) {
+  const nextSize = normalizeHeadingSizePx(sizePx, DEFAULT_TEMPLATE_HEADING_SIZE_PX);
   document.querySelectorAll('.font-display').forEach((node) => {
-    if (!node.dataset.templateHeadingBasePx) {
-      const computed = Number.parseFloat(window.getComputedStyle(node).fontSize || '0');
-      if (Number.isFinite(computed) && computed > 0) {
-        node.dataset.templateHeadingBasePx = String(computed);
-      }
-    }
-    const base = Number.parseFloat(node.dataset.templateHeadingBasePx || '0');
-    if (!Number.isFinite(base) || base <= 0) return;
-    node.style.fontSize = `${(base * nextScale).toFixed(2)}px`;
+    node.style.fontSize = `${nextSize}px`;
   });
 }
 
@@ -166,14 +161,14 @@ function applyTemplateFonts(config) {
     '--template-font-body-size-px',
     `${normalizeBodySizePx(config?.templateBodySizePx, DEFAULT_TEMPLATE_BODY_SIZE_PX)}px`
   );
-  const headingScale = normalizeHeadingScale(config?.templateHeadingScale, DEFAULT_TEMPLATE_HEADING_SCALE);
-  applyHeadingScale(headingScale);
+  const headingSizePx = normalizeHeadingSizePx(config?.templateHeadingSizePx, DEFAULT_TEMPLATE_HEADING_SIZE_PX);
+  applyHeadingSizePx(headingSizePx);
   if (typographyObserver) {
     typographyObserver.disconnect();
     typographyObserver = null;
   }
   typographyObserver = new MutationObserver(() => {
-    applyHeadingScale(headingScale);
+    applyHeadingSizePx(headingSizePx);
   });
   typographyObserver.observe(document.body, { childList: true, subtree: true });
 }
