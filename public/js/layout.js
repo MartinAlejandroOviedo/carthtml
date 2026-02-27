@@ -157,6 +157,39 @@ function injectFloatingWhatsappButton({ storeName, whatsappNumber }) {
   document.body.appendChild(anchor);
 }
 
+function setupMobileHeaderMenu() {
+  const openBtn = document.getElementById('mobile-menu-open');
+  const closeBtn = document.getElementById('mobile-menu-close');
+  const overlay = document.getElementById('mobile-menu-overlay');
+  const drawer = document.getElementById('mobile-menu-drawer');
+  if (!openBtn || !closeBtn || !overlay || !drawer) return;
+
+  const closeMenu = () => {
+    drawer.classList.add('-translate-x-full');
+    overlay.classList.add('hidden');
+    drawer.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('overflow-hidden');
+  };
+
+  const openMenu = () => {
+    drawer.classList.remove('-translate-x-full');
+    overlay.classList.remove('hidden');
+    drawer.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('overflow-hidden');
+  };
+
+  openBtn.addEventListener('click', openMenu);
+  closeBtn.addEventListener('click', closeMenu);
+  overlay.addEventListener('click', closeMenu);
+  drawer.querySelectorAll('a[href]').forEach((link) => {
+    link.addEventListener('click', closeMenu);
+  });
+
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeMenu();
+  });
+}
+
 export async function injectLayout() {
   const headerRoot = document.getElementById('site-header');
   const footerRoot = document.getElementById('site-footer');
@@ -192,6 +225,7 @@ export async function injectLayout() {
   const siteConfig = await fetchSiteConfig();
   hydrateStoreName(siteConfig);
   applyFavicon(siteConfig);
+  setupMobileHeaderMenu();
   injectFloatingWhatsappButton(siteConfig);
   hydrateFooterSocialLinks(siteConfig);
 
