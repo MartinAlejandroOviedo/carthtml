@@ -37,11 +37,12 @@ const viewConfig = {
     title: 'Productos',
     endpoint: 'products',
     idKey: 'id',
-    columns: ['id', 'name', 'category', 'priceArs', 'description', 'imageUrl'],
+    columns: ['id', 'name', 'category', 'priceArs', 'onSale', 'description', 'imageUrl'],
     fields: [
       { key: 'name', label: 'Nombre', type: 'text', required: true, colSpan: 2 },
       { key: 'category', label: 'Categoria', type: 'select', required: true },
       { key: 'priceArs', label: 'Precio ARS', type: 'number', required: true },
+      { key: 'onSale', label: 'En oferta', type: 'switch', required: false, helper: 'Marca este producto como oferta.' },
       { key: 'imageUrl', label: 'URL Imagen', type: 'hidden', required: false },
       { key: 'description', label: 'Descripcion', type: 'wysi-min', required: true, colSpan: 2 }
     ]
@@ -4201,6 +4202,7 @@ function renderTableHead() {
     icon: 'sparkles',
     category: 'shapes',
     priceArs: 'badge-dollar-sign',
+    onSale: 'badge-percent',
     description: 'align-left',
     imageUrl: 'image',
     username: 'at-sign',
@@ -4495,6 +4497,20 @@ async function renderRows() {
               <td class="border-b border-white/10 px-3 py-2">
                 <span class="has-tooltip inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/15 bg-slate-900/60 text-slate-200" data-tooltip="${iconName}">
                   <span class="lucide h-4 w-4" data-lucide="${iconName}" aria-hidden="true"></span>
+                </span>
+              </td>
+            `;
+          }
+          if (activeView === 'products' && col === 'onSale') {
+            const enabled = Number(row[col]) === 1 || row[col] === true;
+            return `
+              <td class="border-b border-white/10 px-3 py-2">
+                <span class="inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${
+                  enabled
+                    ? 'border-emerald-400/30 bg-emerald-500/15 text-emerald-200'
+                    : 'border-white/10 bg-slate-900/60 text-slate-400'
+                }">
+                  ${enabled ? 'Oferta' : 'Normal'}
                 </span>
               </td>
             `;

@@ -718,6 +718,7 @@ function formatProductRow(row) {
     priceArs: row.priceArs,
     description: row.description,
     imageUrl: row.imageUrl,
+    onSale: Number(row.onSale || 0) === 1,
     colors: parseCsv(row.colorsCsv),
     sizes: parseCsv(row.sizesCsv),
     stockQty: Number(row.stockQty || 0),
@@ -827,6 +828,7 @@ async function ensureSchemaMigrations() {
   await addColumnIfMissing('products', 'sizes', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('products', 'stock_qty', 'INTEGER NOT NULL DEFAULT 0');
   await addColumnIfMissing('products', 'detail_text', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('products', 'on_sale', 'INTEGER NOT NULL DEFAULT 0');
 
   await addColumnIfMissing('order_items', 'color', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('order_items', 'size', "TEXT NOT NULL DEFAULT ''");
@@ -1062,9 +1064,9 @@ async function seedProductsIfNeeded() {
   for (const product of products) {
     await run(
       `INSERT INTO products (
-        name, category, price_ars, description, image_url, colors, sizes, stock_qty, detail_text
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      product
+        name, category, price_ars, description, image_url, colors, sizes, stock_qty, detail_text, on_sale
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [...product, 0]
     );
   }
 }
@@ -1615,7 +1617,8 @@ async function initDb() {
     colors TEXT NOT NULL DEFAULT '',
     sizes TEXT NOT NULL DEFAULT '',
     stock_qty INTEGER NOT NULL DEFAULT 0,
-    detail_text TEXT NOT NULL DEFAULT ''
+    detail_text TEXT NOT NULL DEFAULT '',
+    on_sale INTEGER NOT NULL DEFAULT 0
   )`);
 
   await run(`CREATE TABLE IF NOT EXISTS categories (
@@ -1943,6 +1946,7 @@ async function getProducts() {
       price_ars as priceArs,
       description,
       image_url as imageUrl,
+      on_sale as onSale,
       colors as colorsCsv,
       sizes as sizesCsv,
       stock_qty as stockQty,
@@ -2020,6 +2024,7 @@ async function getProductById(productId) {
       price_ars as priceArs,
       description,
       image_url as imageUrl,
+      on_sale as onSale,
       colors as colorsCsv,
       sizes as sizesCsv,
       stock_qty as stockQty,
@@ -4173,27 +4178,40 @@ async function listProductsAdmin() {
       category,
       price_ars as priceArs,
       description,
-      image_url as imageUrl
+      image_url as imageUrl,
+      on_sale as onSale
      FROM products
      ORDER BY id ASC`
   );
 }
 
-async function createProductAdmin({ name, category, priceArs, description, imageUrl }) {
+async function createProductAdmin({ name, category, priceArs, description, imageUrl, onSale }) {
   const normalizedName = normalizeText(name, 120);
   const normalizedCategory = normalizeText(category, 80);
   const normalizedPrice = Number(priceArs);
   const normalizedDescription = normalizeText(description, 500);
   const normalizedImageUrl = normalizeText(imageUrl, 1000);
+  const normalizedOnSale = Number(onSale) ? 1 : 0;
   if (!normalizedName || !normalizedCategory || !Number.isFinite(normalizedPrice) || normalizedPrice <= 0 || !normalizedImageUrl) {
     throw new Error('Datos de producto inválidos.');
   }
 
   const fallback = fallbackByCategory(normalizedCategory, normalizedDescription);
   const result = await run(
-    `INSERT INTO products (name, category, price_ars, description, image_url, colors, sizes, stock_qty, detail_text)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [normalizedName, normalizedCategory, Math.round(normalizedPrice), normalizedDescription, normalizedImageUrl, fallback.colors, fallback.sizes, fallback.stockQty, fallback.detailText]
+    `INSERT INTO products (name, category, price_ars, description, image_url, colors, sizes, stock_qty, detail_text, on_sale)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      normalizedName,
+      normalizedCategory,
+      Math.round(normalizedPrice),
+      normalizedDescription,
+      normalizedImageUrl,
+      fallback.colors,
+      fallback.sizes,
+      fallback.stockQty,
+      fallback.detailText,
+      normalizedOnSale
+    ]
   );
 
   await ensureCategoriesAndImagesFromProducts();
@@ -4206,7 +4224,7 @@ async function createProductAdmin({ name, category, priceArs, description, image
   return setProductMainImage(result.id, normalizedImageUrl);
 }
 
-async function updateProductAdmin(productId, { name, category, priceArs, description, imageUrl }) {
+async function updateProductAdmin(productId, { name, category, priceArs, description, imageUrl, onSale }) {
   const current = await get('SELECT * FROM products WHERE id = ?', [productId]);
   if (!current) return null;
 
@@ -4215,6 +4233,7 @@ async function updateProductAdmin(productId, { name, category, priceArs, descrip
   const nextPrice = priceArs === undefined ? Number(current.price_ars) : Number(priceArs);
   const nextDescription = normalizeText(description ?? current.description, 500);
   const nextImageUrl = normalizeText(imageUrl ?? current.image_url, 1000);
+  const nextOnSale = onSale === undefined ? Number(current.on_sale || 0) : Number(onSale) ? 1 : 0;
 
   if (!nextName || !nextCategory || !Number.isFinite(nextPrice) || nextPrice <= 0 || !nextImageUrl) {
     throw new Error('Datos de producto inválidos.');
@@ -4222,9 +4241,9 @@ async function updateProductAdmin(productId, { name, category, priceArs, descrip
 
   await run(
     `UPDATE products
-     SET name = ?, category = ?, price_ars = ?, description = ?, image_url = ?
+     SET name = ?, category = ?, price_ars = ?, description = ?, image_url = ?, on_sale = ?
      WHERE id = ?`,
-    [nextName, nextCategory, Math.round(nextPrice), nextDescription, nextImageUrl, productId]
+    [nextName, nextCategory, Math.round(nextPrice), nextDescription, nextImageUrl, nextOnSale, productId]
   );
 
   await ensureCategoriesAndImagesFromProducts();

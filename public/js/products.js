@@ -24,7 +24,8 @@ export function renderProducts(products, onAddToCart) {
 
         return `
       <article class="product-card overflow-hidden rounded-3xl border border-white/10 bg-slate-900/75 shadow-xl shadow-slate-950/40" style="animation-delay:${index * 40}ms">
-        <a href="/product.html?id=${product.id}" class="block">
+        <a href="/product.html?id=${product.id}" class="relative block">
+          ${product.onSale ? '<span class="absolute left-3 top-3 z-10 rounded-full border border-emerald-300/40 bg-emerald-500/85 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-white">Oferta</span>' : ''}
           <img src="${cardImage}" alt="${cardImageAlt}" class="h-48 w-full object-cover" style="object-position:${focalX}% ${focalY}%;" loading="lazy" />
         </a>
         <div class="space-y-2 p-4">

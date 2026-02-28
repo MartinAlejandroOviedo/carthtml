@@ -172,6 +172,7 @@ function renderProduct(product) {
       </div>
       <div class="space-y-4">
         <p class="text-xs uppercase tracking-widest text-sky-300">${product.category}</p>
+        ${product.onSale ? '<div><span class="inline-flex rounded-full border border-emerald-300/40 bg-emerald-500/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-200">En oferta</span></div>' : ''}
         <h1 class="font-display text-4xl uppercase leading-none text-white">${product.name}</h1>
 
         <div class="rounded-2xl border border-white/10 bg-slate-950/50 p-4 space-y-3">
