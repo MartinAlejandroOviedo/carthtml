@@ -1433,6 +1433,9 @@ function bindDashboardControls() {
   const refreshNowBtn = document.getElementById('dashboard-refresh-now');
   const resetHistoryBtn = document.getElementById('dashboard-reset-history');
   const pauseToggle = document.getElementById('dashboard-refresh-paused');
+  const serverRestartBtn = document.getElementById('dashboard-server-restart');
+  const serverUpdateBtn = document.getElementById('dashboard-server-update');
+  const serverLogRefreshBtn = document.getElementById('dashboard-server-log-refresh');
 
   if (refreshSelect) {
     refreshSelect.value = String(getDashboardRefreshSeconds());
@@ -1469,6 +1472,28 @@ function bindDashboardControls() {
       showMessage('Historico de metricas reiniciado.');
     });
   }
+
+  if (serverRestartBtn) {
+    serverRestartBtn.addEventListener('click', async () => {
+      if (!confirm('Esto reiniciara el servidor Node. La sesion puede cortarse unos segundos.')) return;
+      await triggerServerControlAction('restart');
+    });
+  }
+
+  if (serverUpdateBtn) {
+    serverUpdateBtn.addEventListener('click', async () => {
+      if (!confirm('Esto hara git pull, reconstruira assets y reiniciara el servicio. Continuar?')) return;
+      await triggerServerControlAction('update');
+    });
+  }
+
+  if (serverLogRefreshBtn) {
+    serverLogRefreshBtn.addEventListener('click', async () => {
+      await refreshServerControlPanel();
+    });
+  }
+
+  void refreshServerControlPanel();
 }
 
 function renderDashboardSummary(summary) {
@@ -1524,6 +1549,26 @@ function renderDashboardSummary(summary) {
             </div>
             <div class="mt-2 flex items-center justify-between">
               <p id="dashboard-refresh-countdown" class="text-xs text-slate-300"></p>
+            </div>
+            <div class="mt-3 rounded-2xl border border-sky-300/20 bg-slate-950/45 p-3">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p class="text-xs uppercase tracking-wide text-sky-200">Servidor y deploy</p>
+                  <p id="dashboard-server-status" class="mt-1 text-xs text-slate-300">Cargando estado...</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <button id="dashboard-server-update" type="button" class="rounded-lg border border-emerald-300/30 bg-emerald-500/20 px-3 py-1.5 text-xs text-emerald-100">
+                    Actualizar desde GitHub
+                  </button>
+                  <button id="dashboard-server-restart" type="button" class="rounded-lg border border-amber-300/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-100">
+                    Reiniciar Node
+                  </button>
+                  <button id="dashboard-server-log-refresh" type="button" class="rounded-lg border border-white/20 bg-slate-900/70 px-3 py-1.5 text-xs text-slate-100">
+                    Ver log
+                  </button>
+                </div>
+              </div>
+              <pre id="dashboard-server-log" class="mt-3 max-h-36 overflow-auto rounded-xl border border-white/10 bg-slate-950/70 p-3 text-[11px] leading-relaxed text-slate-300">Sin operaciones registradas.</pre>
             </div>
             ${
               hasAlerts
@@ -4473,6 +4518,51 @@ async function requestJson(url, options = {}) {
   }
   if (!response.ok) throw new Error(data.error || 'Error de API.');
   return data;
+}
+
+async function refreshServerControlPanel() {
+  const statusEl = document.getElementById('dashboard-server-status');
+  const logEl = document.getElementById('dashboard-server-log');
+  if (!statusEl && !logEl) return;
+
+  try {
+    const data = await requestJson(`${API_BASE}/server-control`);
+    if (!data) return;
+    if (statusEl) {
+      statusEl.textContent = `Servicio: ${data.serviceName || 'carthtml'} · Repo: ${data.cwd || '-'}`;
+    }
+    if (logEl) {
+      logEl.textContent = String(data.logTail || 'Sin operaciones registradas.');
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+  } catch (error) {
+    if (statusEl) statusEl.textContent = error.message;
+  }
+}
+
+async function triggerServerControlAction(action) {
+  const endpoint = action === 'update' ? 'update' : 'restart';
+  const button = document.getElementById(`dashboard-server-${endpoint}`);
+  const label = button ? button.textContent : '';
+
+  try {
+    if (button) {
+      button.disabled = true;
+      button.textContent = action === 'update' ? 'Actualizando...' : 'Reiniciando...';
+    }
+    const data = await requestJson(`${API_BASE}/server/${endpoint}`, { method: 'POST' });
+    showMessage(data?.message || 'Operacion iniciada.');
+  } catch (error) {
+    showMessage(error.message, true);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = label;
+    }
+    setTimeout(() => {
+      void refreshServerControlPanel();
+    }, 800);
+  }
 }
 
 async function renderRows() {

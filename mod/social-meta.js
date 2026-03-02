@@ -421,7 +421,7 @@ function buildSeoMetaTags({
   const twitterSite = normalizeTwitterHandle(publication.twitterSite || defaultTwitterSite || '');
   const twitterCreator = normalizeTwitterHandle(publication.twitterCreator || defaultTwitterCreator || '');
 
-  const lines = ['<!-- SEO_MODULES -->'];
+  const lines = ['<!-- SEO_MODULES -->', `<title>${escapeHtmlAttr(title)}</title>`];
 
   if (htmlMetaEnabled) {
     lines.push(`<meta name="description" content="${escapeHtmlAttr(description)}" />`);
@@ -555,21 +555,29 @@ function buildProductSocialMetaTags({
 
 function injectSocialMetaIntoHtml(html, tags) {
   const source = String(html || '');
+  const dynamicTitleMatch = String(tags || '').match(/<title>[\s\S]*?<\/title>/i);
+  const titleExists = /<title>[\s\S]*?<\/title>/i.test(source);
+  const nextTags =
+    dynamicTitleMatch && titleExists ? String(tags || '').replace(/<title>[\s\S]*?<\/title>\s*/i, '') : String(tags || '');
+  const nextSource =
+    dynamicTitleMatch && titleExists
+      ? source.replace(/<title>[\s\S]*?<\/title>/i, dynamicTitleMatch[0])
+      : source;
   const marker = '<!-- SEO_META -->';
-  if (source.includes(marker)) {
-    return source.replace(marker, tags || '');
+  if (nextSource.includes(marker)) {
+    return nextSource.replace(marker, nextTags);
   }
 
   const legacyMarker = '<!-- SOCIAL_META -->';
-  if (source.includes(legacyMarker)) {
-    return source.replace(legacyMarker, tags || '');
+  if (nextSource.includes(legacyMarker)) {
+    return nextSource.replace(legacyMarker, nextTags);
   }
 
   const headClose = '</head>';
-  if (source.includes(headClose)) {
-    return source.replace(headClose, `${tags || ''}\n  ${headClose}`);
+  if (nextSource.includes(headClose)) {
+    return nextSource.replace(headClose, `${nextTags}\n  ${headClose}`);
   }
-  return source;
+  return nextSource;
 }
 
 module.exports = {

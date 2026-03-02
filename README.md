@@ -53,12 +53,29 @@ Servidor por defecto: `http://localhost:3000`
 - `STORE_NAME` (default `SLStore`)
 - `WHATSAPP_NUMBER` (default `5491112345678`)
 - `NODE_ENV` (recomendado `production` en servidor)
+- `PANEL_SERVICE_NAME` (default `carthtml`)
+- `PANEL_RESTART_COMMAND` (opcional, override del reinicio desde el panel)
+- `PANEL_UPDATE_COMMAND` (opcional, override del update desde GitHub desde el panel)
 
 Ejemplo:
 
 ```bash
 PORT=3000 STORE_NAME=SLStore WHATSAPP_NUMBER=5491112345678 npm run dev
 ```
+
+### Control web del servicio
+
+El dashboard del panel ahora puede:
+
+- reiniciar el servicio Node
+- actualizar el repo con `git pull`, reconstruir assets y reiniciar
+
+Defaults:
+
+- restart: `sudo -n systemctl restart carthtml`
+- update: `cd <repo> && git pull --ff-only && npm install && npm run icons:vendor && npm run tw:build && sudo -n systemctl restart carthtml`
+
+Si el proceso corre como `www-data`, normalmente vas a necesitar `sudo` sin password para ese comando puntual o definir overrides en `PANEL_RESTART_COMMAND` y `PANEL_UPDATE_COMMAND`.
 
 ## Despliegue basico en Debian
 

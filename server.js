@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
+const { spawn } = require('child_process');
 const multer = require('multer');
 const sharp = require('sharp');
 const { buildSeoMetaTags, buildProductSocialMetaTags, injectSocialMetaIntoHtml } = require('./mod/social-meta');
@@ -65,13 +66,17 @@ const PANEL_SESSION_COOKIE = 'panel_session';
 const PANEL_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const uploadDir = path.join(__dirname, 'public', 'uploads');
 const typedImagesDir = path.join(uploadDir, 'images');
+const panelControlDir = path.join(__dirname, 'var', 'panel-control');
+const panelControlLogFile = path.join(panelControlDir, 'server-actions.log');
 const IMAGE_VARIANTS = {
   slider: { width: 500, height: 300 },
   card: { width: 360, height: 190 }
 };
+const PANEL_SERVICE_NAME = String(process.env.PANEL_SERVICE_NAME || 'carthtml').trim() || 'carthtml';
 
 fs.mkdirSync(uploadDir, { recursive: true, mode: 0o755 });
 fs.mkdirSync(typedImagesDir, { recursive: true, mode: 0o755 });
+fs.mkdirSync(panelControlDir, { recursive: true, mode: 0o755 });
 
 let cachedSecuritySettings = null;
 let cachedSecuritySettingsAt = 0;
@@ -100,6 +105,66 @@ function escapeXml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
+}
+
+function shellQuote(value) {
+  return `'${String(value || '').replace(/'/g, `'\"'\"'`)}'`;
+}
+
+function appendPanelControlLog(message) {
+  const line = `[${new Date().toISOString()}] ${String(message || '').trim()}\n`;
+  fs.appendFileSync(panelControlLogFile, line, 'utf8');
+}
+
+function readPanelControlLogTail(maxLines = 40) {
+  try {
+    const source = fs.readFileSync(panelControlLogFile, 'utf8');
+    const lines = source.split(/\r?\n/).filter(Boolean);
+    return lines.slice(-maxLines).join('\n');
+  } catch (_error) {
+    return 'Sin operaciones registradas.';
+  }
+}
+
+function getDefaultPanelRestartCommand() {
+  return `sudo -n systemctl restart ${shellQuote(PANEL_SERVICE_NAME)}`;
+}
+
+function getDefaultPanelUpdateCommand() {
+  return `cd ${shellQuote(__dirname)} && git pull --ff-only && npm install && npm run icons:vendor && npm run tw:build && sudo -n systemctl restart ${shellQuote(PANEL_SERVICE_NAME)}`;
+}
+
+function getPanelRestartCommand() {
+  const configured = String(process.env.PANEL_RESTART_COMMAND || '').trim();
+  return configured || getDefaultPanelRestartCommand();
+}
+
+function getPanelUpdateCommand() {
+  const configured = String(process.env.PANEL_UPDATE_COMMAND || '').trim();
+  return configured || getDefaultPanelUpdateCommand();
+}
+
+function launchPanelControlTask({ action, command, requestedBy }) {
+  const actionLabel = action === 'update' ? 'ACTUALIZACION' : 'REINICIO';
+  appendPanelControlLog(`${actionLabel} solicitado por ${requestedBy || 'panel'}.`);
+
+  const logPath = shellQuote(panelControlLogFile);
+  const wrappedCommand = `
+set +e
+LOG_FILE=${logPath}
+echo "[\\$(date '+%Y-%m-%d %H:%M:%S')] ${actionLabel} iniciado" >> "$LOG_FILE"
+${command} >> "$LOG_FILE" 2>&1
+EXIT_CODE=$?
+echo "[\\$(date '+%Y-%m-%d %H:%M:%S')] ${actionLabel} finalizado con codigo ${EXIT_CODE}" >> "$LOG_FILE"
+exit 0
+`.trim();
+
+  const child = spawn('bash', ['-lc', wrappedCommand], {
+    cwd: __dirname,
+    detached: true,
+    stdio: 'ignore'
+  });
+  child.unref();
 }
 
 function applyTextTemplate(value, vars = {}) {
@@ -780,6 +845,7 @@ app.get(['/', '/index.html'], async (req, res, next) => {
       const baseUrl = getRequestBaseUrl(req);
       const storeName = settings?.storeName || 'SLStore';
       const canonicalUrl = `${baseUrl}/`;
+      const homeTitle = String(settings?.seoHtmlDefaultTitle || '').trim() || 'Inicio';
       return buildSeoMetaTags({
         storeName,
         canonicalUrl,
@@ -787,7 +853,7 @@ app.get(['/', '/index.html'], async (req, res, next) => {
         modules: seoModules,
         defaults: seoDefaults,
         publication: {
-          title: 'Inicio',
+          title: homeTitle,
           description: 'Elegi productos deportivos, arma tu pedido y confirmalo por WhatsApp con el vendedor.',
           keywords: `${storeName}, tienda deportiva, catalogo, futbol, entrenamiento`,
           ogType: 'website',
@@ -1241,6 +1307,66 @@ app.get('/api/panel/dashboard-summary', async (_req, res) => {
   } catch (error) {
     return res.status(500).json({ error: 'No se pudo cargar el resumen del dashboard.' });
   }
+});
+
+app.get('/api/panel/server-control', (req, res) => {
+  return res.json({
+    serviceName: PANEL_SERVICE_NAME,
+    restartConfigured: Boolean(String(getPanelRestartCommand() || '').trim()),
+    updateConfigured: Boolean(String(getPanelUpdateCommand() || '').trim()),
+    cwd: __dirname,
+    logTail: readPanelControlLogTail()
+  });
+});
+
+app.post('/api/panel/server/restart', (req, res) => {
+  const command = getPanelRestartCommand();
+  const requestedBy = req.panelSession?.username || 'panel';
+  if (!String(command || '').trim()) {
+    return res.status(400).json({ error: 'No hay comando de reinicio configurado.' });
+  }
+
+  res.json({
+    ok: true,
+    message: `Reinicio solicitado para ${PANEL_SERVICE_NAME}. La conexion puede cortarse unos segundos.`
+  });
+
+  setTimeout(() => {
+    try {
+      launchPanelControlTask({
+        action: 'restart',
+        command,
+        requestedBy
+      });
+    } catch (error) {
+      appendPanelControlLog(`REINICIO no pudo iniciarse: ${error.message || error}`);
+    }
+  }, 150);
+});
+
+app.post('/api/panel/server/update', (req, res) => {
+  const command = getPanelUpdateCommand();
+  const requestedBy = req.panelSession?.username || 'panel';
+  if (!String(command || '').trim()) {
+    return res.status(400).json({ error: 'No hay comando de actualizacion configurado.' });
+  }
+
+  res.json({
+    ok: true,
+    message: 'Actualizacion desde GitHub iniciada. Revisa el log del dashboard para seguir el progreso.'
+  });
+
+  setTimeout(() => {
+    try {
+      launchPanelControlTask({
+        action: 'update',
+        command,
+        requestedBy
+      });
+    } catch (error) {
+      appendPanelControlLog(`ACTUALIZACION no pudo iniciarse: ${error.message || error}`);
+    }
+  }, 150);
 });
 
 app.get('/api/panel/uploads/health', (_req, res) => {
