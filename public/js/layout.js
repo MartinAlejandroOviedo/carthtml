@@ -23,7 +23,6 @@ const DEFAULT_TEMPLATE_HEADING_COLOR = '#ffffff';
 const DEFAULT_TEMPLATE_BODY_COLOR = '#e2e8f0';
 const DEFAULT_TEMPLATE_HEADING_SIZE_PX = 32;
 const DEFAULT_TEMPLATE_BODY_SIZE_PX = 16;
-let typographyObserver = null;
 
 async function loadPart(partName) {
   if (partsCache.has(partName)) {
@@ -153,13 +152,6 @@ function injectGoogleAnalytics(config) {
   window.gtag('config', measurementId);
 }
 
-function applyHeadingSizePx(sizePx) {
-  const nextSize = normalizeHeadingSizePx(sizePx, DEFAULT_TEMPLATE_HEADING_SIZE_PX);
-  document.querySelectorAll('.font-display').forEach((node) => {
-    node.style.fontSize = `${nextSize}px`;
-  });
-}
-
 function applyTemplateFonts(config) {
   const headingKey = normalizeTemplateFontKey(config?.templateHeadingFont, DEFAULT_TEMPLATE_HEADING_FONT);
   const bodyKey = normalizeTemplateFontKey(config?.templateBodyFont, DEFAULT_TEMPLATE_BODY_FONT);
@@ -194,16 +186,6 @@ function applyTemplateFonts(config) {
     '--template-font-body-size-px',
     `${normalizeBodySizePx(config?.templateBodySizePx, DEFAULT_TEMPLATE_BODY_SIZE_PX)}px`
   );
-  const headingSizePx = normalizeHeadingSizePx(config?.templateHeadingSizePx, DEFAULT_TEMPLATE_HEADING_SIZE_PX);
-  applyHeadingSizePx(headingSizePx);
-  if (typographyObserver) {
-    typographyObserver.disconnect();
-    typographyObserver = null;
-  }
-  typographyObserver = new MutationObserver(() => {
-    applyHeadingSizePx(headingSizePx);
-  });
-  typographyObserver.observe(document.body, { childList: true, subtree: true });
 }
 
 function hydrateFooterSocialLinks(config) {

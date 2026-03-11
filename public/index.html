@@ -5,13 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SLStore</title>
     <!-- SEO_META -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=Manrope:wght@400;500;700;800&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=Press+Start+2P&display=swap"
-      rel="stylesheet"
-    />
-    <script src="/vendor/lucide/lucide.min.js"></script>
+    <script src="/vendor/lucide/lucide.min.js" defer></script>
     <link rel="stylesheet" href="/tailwind.css" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
@@ -107,7 +101,9 @@
               placeholder="Codigo postal"
               class="w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white placeholder:text-slate-500"
             />
+            <label for="checkout-delivery-type" class="sr-only">Tipo de entrega</label>
             <select
+              id="checkout-delivery-type"
               name="deliveryType"
               class="w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
             >

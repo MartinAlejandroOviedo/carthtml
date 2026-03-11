@@ -118,7 +118,18 @@ function renderProduct(product) {
     <article class="grid gap-4 md:grid-cols-2">
       <div class="space-y-3">
         <div class="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-800/50">
-          <img id="product-main-image" src="${images[0].sliderUrl || images[0].url}" alt="${images[0].alt || product.name}" class="h-full max-h-[420px] w-full object-cover" style="object-position:${images[0].focalX}% ${images[0].focalY}%;" />
+          <img
+            id="product-main-image"
+            src="${images[0].sliderUrl || images[0].url}"
+            alt="${images[0].alt || product.name}"
+            class="h-full max-h-[420px] w-full object-cover"
+            style="object-position:${images[0].focalX}% ${images[0].focalY}%;"
+            width="500"
+            height="300"
+            loading="eager"
+            fetchpriority="high"
+            decoding="async"
+          />
           ${
             hasSlider
               ? `
@@ -160,7 +171,16 @@ function renderProduct(product) {
                 class="product-thumb overflow-hidden rounded-lg border border-white/15 bg-slate-900/50 ${index === 0 ? 'ring-2 ring-sky-400' : ''}"
                 aria-label="Ver imagen ${index + 1}"
               >
-                <img src="${img.cardUrl || img.url}" alt="${img.alt || product.name}" class="h-16 w-full object-cover" style="object-position:${img.focalX}% ${img.focalY}%;" />
+                <img
+                  src="${img.cardUrl || img.url}"
+                  alt="${img.alt || product.name}"
+                  class="h-16 w-full object-cover"
+                  style="object-position:${img.focalX}% ${img.focalY}%;"
+                  width="360"
+                  height="190"
+                  loading="lazy"
+                  decoding="async"
+                />
               </button>
             `
               )

@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const { spawn } = require('child_process');
 const multer = require('multer');
 const sharp = require('sharp');
+const compression = require('compression');
 const { buildSeoMetaTags, buildProductSocialMetaTags, injectSocialMetaIntoHtml } = require('./mod/social-meta');
 const {
   initDb,
@@ -71,6 +72,11 @@ const panelControlLogFile = path.join(panelControlDir, 'server-actions.log');
 const IMAGE_VARIANTS = {
   slider: { width: 500, height: 300 },
   card: { width: 360, height: 190 }
+};
+const IMAGE_UPLOAD_ORIGINAL = {
+  maxWidth: 1600,
+  maxHeight: 1600,
+  quality: 82
 };
 const PANEL_SERVICE_NAME = String(process.env.PANEL_SERVICE_NAME || 'carthtml').trim() || 'carthtml';
 
@@ -407,6 +413,37 @@ ${body}
 </urlset>`;
 }
 
+function setStaticAssetHeaders(res, filePath) {
+  const ext = path.extname(String(filePath || '')).toLowerCase();
+  if (ext === '.html') {
+    res.setHeader('Cache-Control', 'no-cache');
+    return;
+  }
+
+  const staticExt = new Set([
+    '.js',
+    '.css',
+    '.json',
+    '.svg',
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.webp',
+    '.avif',
+    '.gif',
+    '.ico',
+    '.woff',
+    '.woff2',
+    '.ttf',
+    '.otf',
+    '.map'
+  ]);
+
+  if (staticExt.has(ext)) {
+    res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
+  }
+}
+
 function normalizeEntityType(raw) {
   const type = String(raw || '')
     .trim()
@@ -600,6 +637,38 @@ async function generateImageVariants(file, uploadContext) {
   };
 }
 
+async function optimizeUploadedOriginalImage(file, uploadContext) {
+  if (!file || !file.path || !file.filename) {
+    throw new Error('Archivo inválido para optimizar.');
+  }
+
+  const targetDir = path.dirname(file.path);
+  const baseName = path.basename(String(file.filename || ''), path.extname(String(file.filename || ''))) || 'img';
+  const optimizedName = uniqueFileName(targetDir, `${baseName}.webp`);
+  const optimizedPath = path.join(targetDir, optimizedName);
+
+  await sharp(file.path)
+    .rotate()
+    .resize(IMAGE_UPLOAD_ORIGINAL.maxWidth, IMAGE_UPLOAD_ORIGINAL.maxHeight, {
+      fit: 'inside',
+      withoutEnlargement: true
+    })
+    .webp({ quality: IMAGE_UPLOAD_ORIGINAL.quality, effort: 4 })
+    .toFile(optimizedPath);
+
+  if (path.resolve(optimizedPath) !== path.resolve(file.path)) {
+    await fs.promises.unlink(file.path).catch(() => {});
+  }
+
+  file.filename = optimizedName;
+  file.path = optimizedPath;
+
+  return {
+    fileName: optimizedName,
+    url: publicUrlForUpload(uploadContext, optimizedName)
+  };
+}
+
 function resolveUploadFilePath(fileUrl) {
   const raw = String(fileUrl || '');
   if (!raw.startsWith('/uploads/')) return null;
@@ -675,6 +744,11 @@ const imageUpload = multer({
 });
 
 app.use(express.json());
+app.use(
+  compression({
+    threshold: 1024
+  })
+);
 
 app.use(async (req, res, next) => {
   cleanupExpiredPanelSessions();
@@ -1071,8 +1145,19 @@ app.get('/htaccess.txt', async (req, res) => {
   }
 });
 
-app.use(express.static(path.join(__dirname, 'public')));
-app.use('/panel', express.static(path.join(__dirname, 'public', 'panel')));
+app.use(
+  express.static(path.join(__dirname, 'public'), {
+    etag: true,
+    setHeaders: setStaticAssetHeaders
+  })
+);
+app.use(
+  '/panel',
+  express.static(path.join(__dirname, 'public', 'panel'), {
+    etag: true,
+    setHeaders: setStaticAssetHeaders
+  })
+);
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, service: 'carthtml-api' });
@@ -1402,7 +1487,15 @@ app.post('/api/panel/uploads/image', (req, res) => {
     }
 
     const uploadContext = parseUploadContext(req);
-    const url = publicUrlForUpload(uploadContext, req.file.filename);
+    let optimized;
+    try {
+      optimized = await optimizeUploadedOriginalImage(req.file, uploadContext);
+    } catch (_optError) {
+      await fs.promises.unlink(req.file.path).catch(() => {});
+      return res.status(500).json({ error: 'No se pudo optimizar la imagen subida.' });
+    }
+
+    const url = optimized.url;
     let variants = { sliderUrl: url, cardUrl: url };
     try {
       variants = await generateImageVariants(req.file, uploadContext);
@@ -1413,7 +1506,7 @@ app.post('/api/panel/uploads/image', (req, res) => {
 
     return res.status(201).json({
       ok: true,
-      fileName: req.file.filename,
+      fileName: optimized.fileName,
       entityType: uploadContext?.entityType || null,
       entityId: uploadContext?.entityId || null,
       url,
@@ -1449,11 +1542,19 @@ app.post('/api/panel/uploads/images', (req, res) => {
     const uploadContext = parseUploadContext(req);
     const files = [];
     for (const file of req.files) {
-      const url = publicUrlForUpload(uploadContext, file.filename);
+      let optimized;
+      try {
+        optimized = await optimizeUploadedOriginalImage(file, uploadContext);
+      } catch (_optError) {
+        await fs.promises.unlink(file.path).catch(() => {});
+        return res.status(500).json({ error: 'No se pudo optimizar una de las imagenes.' });
+      }
+
+      const url = optimized.url;
       try {
         const variants = await generateImageVariants(file, uploadContext);
         files.push({
-          fileName: file.filename,
+          fileName: optimized.fileName,
           entityType: uploadContext?.entityType || null,
           entityId: uploadContext?.entityId || null,
           url,

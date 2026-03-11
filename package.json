@@ -21,6 +21,7 @@
   "dependencies": {
     "@lucide/lab": "^0.1.2",
     "bcryptjs": "^3.0.3",
+    "compression": "^1.8.1",
     "express": "^4.21.2",
     "lucide": "^0.575.0",
     "multer": "^2.0.2",

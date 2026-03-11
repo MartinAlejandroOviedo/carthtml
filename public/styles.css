@@ -49,6 +49,25 @@ main > * {
   margin-top: auto;
 }
 
+/* Reserve space to avoid CLS while header/footer are injected asynchronously. */
+#site-header {
+  min-height: 90px;
+}
+
+#site-footer {
+  min-height: 240px;
+}
+
+@media (max-width: 767px) {
+  #site-header {
+    min-height: 84px;
+  }
+
+  #site-footer {
+    min-height: 280px;
+  }
+}
+
 @keyframes reveal {
   from {
     opacity: 0;
