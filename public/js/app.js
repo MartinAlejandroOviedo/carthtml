@@ -176,6 +176,7 @@ async function handleCheckout(event) {
 }
 
 async function bootstrap() {
+  const productsPromise = fetchProducts();
   await injectLayout();
 
   checkoutForm = document.getElementById('checkout-form');
@@ -224,7 +225,7 @@ async function bootstrap() {
   }
 
   try {
-    const products = await fetchProducts();
+    const products = await productsPromise;
     products.forEach((product) => productsById.set(product.id, product));
 
     allProducts = products;

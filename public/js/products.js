@@ -1,5 +1,8 @@
 export function renderProducts(products, onAddToCart) {
   const grid = document.getElementById('products-grid');
+  if (grid) {
+    grid.setAttribute('aria-busy', 'true');
+  }
 
   if (!products.length) {
     grid.innerHTML = `
@@ -72,6 +75,8 @@ export function renderProducts(products, onAddToCart) {
       }
     )
     .join('');
+
+  grid.setAttribute('aria-busy', 'false');
 
   grid.querySelectorAll('.add-to-cart').forEach((button) => {
     button.addEventListener('click', () => {
