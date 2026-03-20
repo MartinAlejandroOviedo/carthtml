@@ -21,6 +21,90 @@ let filtersClose;
 let filtersBackdrop;
 let sortSelect;
 
+function setupHomeHeroCarousel() {
+  const carousel = document.getElementById('home-hero-carousel');
+  if (!carousel) return;
+
+  const slides = Array.from(carousel.querySelectorAll('[data-hero-slide]'));
+  const dots = Array.from(carousel.querySelectorAll('[data-hero-dot]'));
+  const prevBtn = document.getElementById('home-hero-prev');
+  const nextBtn = document.getElementById('home-hero-next');
+  if (!slides.length) return;
+
+  let activeIndex = 0;
+  let autoRotateId = null;
+  const shouldAutoRotate = !window.matchMedia('(prefers-reduced-motion: reduce)').matches && slides.length > 1;
+
+  const render = (index) => {
+    activeIndex = (index + slides.length) % slides.length;
+    slides.forEach((slide, slideIndex) => {
+      const isActive = slideIndex === activeIndex;
+      slide.classList.toggle('opacity-0', !isActive);
+      slide.classList.toggle('pointer-events-none', !isActive);
+      slide.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+    });
+    dots.forEach((dot, dotIndex) => {
+      const isActive = dotIndex === activeIndex;
+      dot.classList.toggle('bg-white', isActive);
+      dot.classList.toggle('bg-white/45', !isActive);
+      dot.setAttribute('aria-current', isActive ? 'true' : 'false');
+    });
+  };
+
+  const stopAutoRotate = () => {
+    if (autoRotateId) {
+      window.clearInterval(autoRotateId);
+      autoRotateId = null;
+    }
+  };
+
+  const startAutoRotate = () => {
+    if (!shouldAutoRotate) return;
+    stopAutoRotate();
+    autoRotateId = window.setInterval(() => {
+      render(activeIndex + 1);
+    }, 5000);
+  };
+
+  prevBtn?.addEventListener('click', () => {
+    render(activeIndex - 1);
+    startAutoRotate();
+  });
+
+  nextBtn?.addEventListener('click', () => {
+    render(activeIndex + 1);
+    startAutoRotate();
+  });
+
+  dots.forEach((dot) => {
+    dot.addEventListener('click', () => {
+      const targetIndex = Number(dot.dataset.heroDot);
+      if (!Number.isFinite(targetIndex)) return;
+      render(targetIndex);
+      startAutoRotate();
+    });
+  });
+
+  carousel.addEventListener('mouseenter', stopAutoRotate);
+  carousel.addEventListener('mouseleave', startAutoRotate);
+  carousel.addEventListener('focusin', stopAutoRotate);
+  carousel.addEventListener('focusout', (event) => {
+    if (!carousel.contains(event.relatedTarget)) {
+      startAutoRotate();
+    }
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      stopAutoRotate();
+      return;
+    }
+    startAutoRotate();
+  });
+
+  render(0);
+  startAutoRotate();
+}
+
 function openWhatsappCheckout(url) {
   if (!url) return;
   const win = window.open(url, '_blank', 'noopener,noreferrer');
@@ -190,6 +274,7 @@ async function bootstrap() {
   sortSelect = document.getElementById('sort-products');
 
   setupCartPanel();
+  setupHomeHeroCarousel();
   setupDeliveryFields(checkoutForm);
   if (filtersPanel && filtersToggle && filtersClose && filtersBackdrop) {
     const openFilters = () => {
