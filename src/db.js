@@ -26,6 +26,29 @@ const DEFAULT_CATEGORIES = [
   'Accesorios',
   'Bolsos y mochilas'
 ];
+const DEFAULT_HERO_SLIDES = [
+  {
+    url: 'https://picsum.photos/seed/slstore-hero-1/1600/900',
+    altText: 'Jugador de futbol con camiseta oficial',
+    title: 'Equipate para tu proximo partido',
+    description: 'Elegi productos, armamos tu pedido y lo enviamos directo por WhatsApp con detalle completo.',
+    sortOrder: 0
+  },
+  {
+    url: 'https://picsum.photos/seed/slstore-hero-2/1600/900',
+    altText: 'Indumentaria deportiva para entrenar y competir',
+    title: 'Nuevos ingresos toda la semana',
+    description: 'Remeras, shorts y accesorios listos para salir a la cancha.',
+    sortOrder: 1
+  },
+  {
+    url: 'https://picsum.photos/seed/slstore-hero-3/1600/900',
+    altText: 'Ofertas destacadas para equipamiento deportivo',
+    title: 'Promos y envios a todo el pais',
+    description: 'Compra rapido y recibi con Correo Argentino en tu ciudad.',
+    sortOrder: 2
+  }
+];
 
 const HELP_PAGE_TITLE = 'Como pedir de forma rapida';
 const SECURITY_PAGE_TITLE = 'Seguridad y anti scrape';
@@ -822,6 +845,30 @@ async function addColumnIfMissing(tableName, columnName, definition) {
 }
 
 async function ensureSchemaMigrations() {
+  await run(`CREATE TABLE IF NOT EXISTS hero_slides (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    url TEXT NOT NULL,
+    alt_text TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    focal_x INTEGER NOT NULL DEFAULT 50,
+    focal_y INTEGER NOT NULL DEFAULT 50,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+  )`);
+
+  await addColumnIfMissing('hero_slides', 'alt_text', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('hero_slides', 'title', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('hero_slides', 'description', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('hero_slides', 'sort_order', 'INTEGER NOT NULL DEFAULT 0');
+  await addColumnIfMissing('hero_slides', 'focal_x', 'INTEGER NOT NULL DEFAULT 50');
+  await addColumnIfMissing('hero_slides', 'focal_y', 'INTEGER NOT NULL DEFAULT 50');
+  await addColumnIfMissing('hero_slides', 'is_active', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumnIfMissing('hero_slides', 'created_at', "TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))");
+  await addColumnIfMissing('hero_slides', 'updated_at', "TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))");
+
   await addColumnIfMissing('categories', 'icon', "TEXT NOT NULL DEFAULT 'tag'");
   await addColumnIfMissing('pages', 'image_url', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('products', 'colors', "TEXT NOT NULL DEFAULT ''");
@@ -1214,6 +1261,27 @@ async function seedPages() {
        updated_at = datetime('now', 'localtime')`,
     ['security', SECURITY_PAGE_TITLE, SECURITY_PAGE_CONTENT_HTML]
   );
+}
+
+async function seedHeroSlides() {
+  const row = await get('SELECT COUNT(*) as total FROM hero_slides');
+  if (Number(row?.total || 0) > 0) return;
+
+  for (const slide of DEFAULT_HERO_SLIDES) {
+    const url = normalizeText(slide.url, 1000);
+    if (!url) continue;
+    await run(
+      `INSERT INTO hero_slides (url, alt_text, title, description, sort_order, focal_x, focal_y, is_active)
+       VALUES (?, ?, ?, ?, ?, 50, 50, 1)`,
+      [
+        url,
+        normalizeText(slide.altText, 180),
+        normalizeText(slide.title, 160),
+        normalizeText(slide.description, 280),
+        Number.isInteger(Number(slide.sortOrder)) ? Number(slide.sortOrder) : 0
+      ]
+    );
+  }
 }
 
 async function seedDefaultAdminUser() {
@@ -1837,10 +1905,25 @@ async function initDb() {
     FOREIGN KEY (order_id) REFERENCES orders(id)
   )`);
 
+  await run(`CREATE TABLE IF NOT EXISTS hero_slides (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    url TEXT NOT NULL,
+    alt_text TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    focal_x INTEGER NOT NULL DEFAULT 50,
+    focal_y INTEGER NOT NULL DEFAULT 50,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+  )`);
+
   await ensureSchemaMigrations();
   await migrateLegacyUserPasswords();
   await seedDefaultCategories();
   await seedPages();
+  await seedHeroSlides();
   await seedDefaultAdminUser();
   await seedSettings();
   await seedProductsIfNeeded();
@@ -4112,6 +4195,135 @@ async function deletePageImage(imageId) {
   return result.changes > 0;
 }
 
+async function listHeroSlides({ activeOnly = false } = {}) {
+  const params = [];
+  let whereClause = '';
+  if (activeOnly) {
+    whereClause = 'WHERE is_active = 1';
+  }
+
+  return all(
+    `SELECT
+      id,
+      url,
+      alt_text as altText,
+      title,
+      description,
+      sort_order as sortOrder,
+      focal_x as focalX,
+      focal_y as focalY,
+      is_active as isActive,
+      created_at as createdAt,
+      updated_at as updatedAt
+     FROM hero_slides
+     ${whereClause}
+     ORDER BY sort_order ASC, id ASC`,
+    params
+  );
+}
+
+async function getHeroSlideById(slideId) {
+  return get(
+    `SELECT
+      id,
+      url,
+      alt_text as altText,
+      title,
+      description,
+      sort_order as sortOrder,
+      focal_x as focalX,
+      focal_y as focalY,
+      is_active as isActive,
+      created_at as createdAt,
+      updated_at as updatedAt
+     FROM hero_slides
+     WHERE id = ?`,
+    [slideId]
+  );
+}
+
+async function createHeroSlide({
+  url,
+  altText = '',
+  title = '',
+  description = '',
+  sortOrder = 0,
+  focalX = 50,
+  focalY = 50,
+  isActive = 1
+}) {
+  const normalizedUrl = normalizeText(url, 1000);
+  if (!normalizedUrl) {
+    throw new Error('La URL de imagen del slide es obligatoria.');
+  }
+
+  const result = await run(
+    `INSERT INTO hero_slides (url, alt_text, title, description, sort_order, focal_x, focal_y, is_active, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))`,
+    [
+      normalizedUrl,
+      normalizeText(altText, 180),
+      normalizeText(title, 160),
+      normalizeText(description, 280),
+      Number.isInteger(Number(sortOrder)) ? Number(sortOrder) : 0,
+      normalizeFocalPercent(focalX, 50),
+      normalizeFocalPercent(focalY, 50),
+      Number(isActive) ? 1 : 0
+    ]
+  );
+
+  return getHeroSlideById(result.id);
+}
+
+async function updateHeroSlide(slideId, { url, altText, title, description, sortOrder, focalX, focalY, isActive }) {
+  const current = await get('SELECT * FROM hero_slides WHERE id = ?', [slideId]);
+  if (!current) return null;
+
+  const nextUrl = normalizeText(url ?? current.url, 1000);
+  const nextSortOrder =
+    sortOrder === undefined
+      ? Number(current.sort_order || 0)
+      : Number.isInteger(Number(sortOrder))
+        ? Number(sortOrder)
+        : Number(current.sort_order || 0);
+  if (!nextUrl) {
+    throw new Error('La URL de imagen del slide es obligatoria.');
+  }
+
+  await run(
+    `UPDATE hero_slides
+     SET
+       url = ?,
+       alt_text = ?,
+       title = ?,
+       description = ?,
+       sort_order = ?,
+       focal_x = ?,
+       focal_y = ?,
+       is_active = ?,
+       updated_at = datetime('now', 'localtime')
+     WHERE id = ?`,
+    [
+      nextUrl,
+      normalizeText(altText ?? current.alt_text, 180),
+      normalizeText(title ?? current.title, 160),
+      normalizeText(description ?? current.description, 280),
+      nextSortOrder,
+      focalX === undefined ? normalizeFocalPercent(current.focal_x, 50) : normalizeFocalPercent(focalX, 50),
+      focalY === undefined ? normalizeFocalPercent(current.focal_y, 50) : normalizeFocalPercent(focalY, 50),
+      isActive === undefined ? (Number(current.is_active) ? 1 : 0) : Number(isActive) ? 1 : 0,
+      slideId
+    ]
+  );
+
+  return getHeroSlideById(slideId);
+}
+
+async function deleteHeroSlide(slideId) {
+  const result = await run('DELETE FROM hero_slides WHERE id = ?', [slideId]);
+  return result.changes > 0;
+}
+
 async function listPages() {
   return all(
     `SELECT id, slug, title, image_url as imageUrl, content_html as contentHtml, updated_at as updatedAt
@@ -4418,6 +4630,11 @@ module.exports = {
   createPageImage,
   updatePageImage,
   deletePageImage,
+  listHeroSlides,
+  getHeroSlideById,
+  createHeroSlide,
+  updateHeroSlide,
+  deleteHeroSlide,
   setPageMainImage,
   listPages,
   createPage,

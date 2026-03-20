@@ -113,6 +113,22 @@ const viewConfig = {
       { key: 'contentHtml', label: 'Contenido HTML', type: 'wysi', required: true, colSpan: 2 }
     ]
   },
+  'hero-slides': {
+    title: 'Hero Slider',
+    endpoint: 'hero-slides',
+    idKey: 'id',
+    columns: ['id', 'url', 'title', 'sortOrder', 'isActive', 'updatedAt'],
+    fields: [
+      { key: 'url', label: 'URL imagen', type: 'text', required: true, colSpan: 2, placeholder: '/uploads/images/hero-slider/home/slide.webp' },
+      { key: 'altText', label: 'ALT imagen', type: 'text', required: false, colSpan: 2, placeholder: 'Descripcion de la imagen' },
+      { key: 'title', label: 'Titulo', type: 'text', required: false, colSpan: 2, placeholder: 'Titulo del slide' },
+      { key: 'description', label: 'Descripcion', type: 'textarea', required: false, colSpan: 2, placeholder: 'Texto corto del slide' },
+      { key: 'sortOrder', label: 'Orden', type: 'number', required: false, defaultValue: 0 },
+      { key: 'isActive', label: 'Activo', type: 'switch', required: false, helper: 'Solo los activos se muestran en el home.' },
+      { key: 'focalX', label: 'Foco X', type: 'number', required: false, defaultValue: 50, min: '0', max: '100' },
+      { key: 'focalY', label: 'Foco Y', type: 'number', required: false, defaultValue: 50, min: '0', max: '100' }
+    ]
+  },
   settings: {
     title: 'Configuracion',
     endpoint: 'settings',
@@ -2667,6 +2683,73 @@ function setProductUploadProgress({ active = false, current = 0, total = 0, mess
   }
 }
 
+function updateHeroSlidePreview(url) {
+  const preview = document.getElementById('hero-slide-preview');
+  const empty = document.getElementById('hero-slide-preview-empty');
+  const currentUrl = document.getElementById('hero-slide-current-url');
+  if (!preview || !empty || !currentUrl) return;
+
+  const normalizedUrl = String(url || '').trim();
+  currentUrl.textContent = normalizedUrl;
+  if (!normalizedUrl) {
+    preview.classList.add('hidden');
+    preview.removeAttribute('src');
+    empty.classList.remove('hidden');
+    return;
+  }
+
+  preview.src = normalizedUrl;
+  preview.classList.remove('hidden');
+  empty.classList.add('hidden');
+}
+
+function setupHeroSlideUploadUI() {
+  const urlInput = formEl.elements.namedItem('url');
+  const fileInput = document.getElementById('hero-slide-file-input');
+  const uploadBtn = document.getElementById('hero-slide-upload-btn');
+  const clearBtn = document.getElementById('hero-slide-clear-btn');
+  if (!urlInput) return;
+
+  updateHeroSlidePreview(urlInput.value);
+
+  urlInput.addEventListener('input', () => {
+    updateHeroSlidePreview(urlInput.value);
+  });
+
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      urlInput.value = '';
+      if (fileInput) fileInput.value = '';
+      updateHeroSlidePreview('');
+    });
+  }
+
+  if (uploadBtn && fileInput) {
+    uploadBtn.addEventListener('click', async () => {
+      const file = fileInput.files?.[0];
+      if (!file) {
+        showMessage('Selecciona una imagen para subir.', true);
+        return;
+      }
+
+      try {
+        uploadBtn.disabled = true;
+        uploadBtn.textContent = 'Subiendo...';
+        const uploadedUrl = await uploadImageFile(file, 'hero-slider', 'home');
+        if (!uploadedUrl) throw new Error('No se recibió URL del slide.');
+        urlInput.value = String(uploadedUrl).trim();
+        updateHeroSlidePreview(urlInput.value);
+        showMessage('Imagen del hero subida.');
+      } catch (error) {
+        showMessage(error.message, true);
+      } finally {
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = 'Subir imagen';
+      }
+    });
+  }
+}
+
 async function uploadImageFile(file, entityOrProductId = null, maybeEntityId = null) {
   let entityType = null;
   let entityId = null;
@@ -4119,6 +4202,51 @@ function renderForm() {
         `;
       }
 
+      if (activeView === 'hero-slides' && field.key === 'url') {
+        return `
+          <div ${tabAttr} class="${colClass} ${tabClass} rounded-xl border border-white/10 bg-slate-950/40 p-3 space-y-3">
+            <label class="text-sm text-slate-200">
+              ${field.label}
+              <input
+                name="${field.key}"
+                type="text"
+                ${field.required ? 'required' : ''}
+                ${placeholderAttr}
+                class="mt-1 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm"
+              />
+            </label>
+            <div class="grid gap-2 sm:grid-cols-2">
+              <label class="text-sm text-slate-200">
+                Subir imagen
+                <input id="hero-slide-file-input" type="file" accept="image/*" class="file-picker mt-1 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm" />
+              </label>
+              <div class="rounded-xl border border-white/10 bg-slate-900/50 p-2">
+                <img id="hero-slide-preview" alt="Preview Hero Slide" class="hidden h-36 w-full rounded-lg object-cover" />
+                <p id="hero-slide-preview-empty" class="text-xs text-slate-400">Sin imagen configurada.</p>
+                <p id="hero-slide-current-url" class="mt-1 truncate text-[11px] text-slate-500"></p>
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                id="hero-slide-upload-btn"
+                class="rounded-xl border border-sky-300/30 bg-sky-500/20 px-3 py-2 text-sm text-sky-100 transition hover:bg-sky-500/35"
+              >
+                Subir imagen
+              </button>
+              <button
+                type="button"
+                id="hero-slide-clear-btn"
+                class="rounded-xl border border-white/20 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-800/70"
+              >
+                Limpiar
+              </button>
+              <span class="text-xs text-slate-400">Usa 1600x900 para mejor resultado.</span>
+            </div>
+          </div>
+        `;
+      }
+
       return `
         <label ${tabAttr} class="text-sm text-slate-200 ${colClass} ${tabClass}">
           ${field.label}
@@ -4230,6 +4358,9 @@ function renderForm() {
   if (activeView === 'pages') {
     setupPageImageUI();
     void setupPageWysiEditor();
+  }
+  if (activeView === 'hero-slides') {
+    setupHeroSlideUploadUI();
   }
 }
 
@@ -4351,6 +4482,12 @@ function fillForm(item) {
       renderPageImagesManager(pageId);
     }
   }
+  if (activeView === 'hero-slides') {
+    const slideUrlInput = formEl.elements.namedItem('url');
+    if (slideUrlInput) {
+      updateHeroSlidePreview(slideUrlInput.value);
+    }
+  }
   if (isTemplateAppearanceView()) {
     const storeLogoInput = formEl.elements.namedItem('storeLogoUrl');
     if (storeLogoInput) updateStoreLogoPreview(storeLogoInput.value);
@@ -4415,6 +4552,11 @@ function clearForm() {
     if (imageManager) imageManager.innerHTML = '<p class="text-xs text-slate-400">Guarda la pagina para gestionar la galeria.</p>';
     renderPageUploadPreview([]);
     setProductUploadProgress({ active: false, message: 'Sin tareas pendientes.' });
+  }
+  if (activeView === 'hero-slides') {
+    const slideFileInput = document.getElementById('hero-slide-file-input');
+    if (slideFileInput) slideFileInput.value = '';
+    updateHeroSlidePreview('');
   }
   if (isTemplateAppearanceView()) {
     if (activeView === 'settings') {

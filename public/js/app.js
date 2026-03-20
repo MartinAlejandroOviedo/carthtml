@@ -25,17 +25,33 @@ function setupHomeHeroCarousel() {
   const carousel = document.getElementById('home-hero-carousel');
   if (!carousel) return;
 
-  const slides = Array.from(carousel.querySelectorAll('[data-hero-slide]'));
-  const dots = Array.from(carousel.querySelectorAll('[data-hero-dot]'));
+  const slidesTrack = document.getElementById('home-hero-track');
+  const dotsRoot = document.getElementById('home-hero-dots');
+  if (!slidesTrack || !dotsRoot) return;
+
+  const escapeHtml = (value) =>
+    String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+  let slides = Array.from(carousel.querySelectorAll('[data-hero-slide]'));
+  let dots = Array.from(carousel.querySelectorAll('[data-hero-dot]'));
   const prevBtn = document.getElementById('home-hero-prev');
   const nextBtn = document.getElementById('home-hero-next');
   if (!slides.length) return;
 
   let activeIndex = 0;
   let autoRotateId = null;
-  const shouldAutoRotate = !window.matchMedia('(prefers-reduced-motion: reduce)').matches && slides.length > 1;
+  let touchStartX = null;
+  let touchStartY = null;
+  let touchStartTime = 0;
+  const canAutoRotate = () => !window.matchMedia('(prefers-reduced-motion: reduce)').matches && slides.length > 1;
 
   const render = (index) => {
+    if (!slides.length) return;
     activeIndex = (index + slides.length) % slides.length;
     slides.forEach((slide, slideIndex) => {
       const isActive = slideIndex === activeIndex;
@@ -49,6 +65,10 @@ function setupHomeHeroCarousel() {
       dot.classList.toggle('bg-white/45', !isActive);
       dot.setAttribute('aria-current', isActive ? 'true' : 'false');
     });
+    const hasMany = slides.length > 1;
+    dotsRoot.classList.toggle('hidden', !hasMany);
+    prevBtn?.classList.toggle('hidden', !hasMany);
+    nextBtn?.classList.toggle('hidden', !hasMany);
   };
 
   const stopAutoRotate = () => {
@@ -59,11 +79,85 @@ function setupHomeHeroCarousel() {
   };
 
   const startAutoRotate = () => {
-    if (!shouldAutoRotate) return;
+    if (!canAutoRotate()) return;
     stopAutoRotate();
     autoRotateId = window.setInterval(() => {
       render(activeIndex + 1);
     }, 5000);
+  };
+
+  const bindDots = () => {
+    dots.forEach((dot) => {
+      dot.addEventListener('click', () => {
+        const targetIndex = Number(dot.dataset.heroDot);
+        if (!Number.isFinite(targetIndex)) return;
+        render(targetIndex);
+        startAutoRotate();
+      });
+    });
+  };
+
+  const fallbackCopy = [
+    {
+      title: 'Equipate para tu proximo partido',
+      description: 'Elegi productos, armamos tu pedido y lo enviamos directo por WhatsApp con detalle completo.'
+    },
+    {
+      title: 'Nuevos ingresos toda la semana',
+      description: 'Remeras, shorts y accesorios listos para salir a la cancha.'
+    },
+    {
+      title: 'Promos y envios a todo el pais',
+      description: 'Compra rapido y recibi con Correo Argentino en tu ciudad.'
+    }
+  ];
+
+  const applyRemoteSlides = (slideRows) => {
+    if (!Array.isArray(slideRows) || !slideRows.length) return;
+    const nextSlides = slideRows
+      .filter((slide) => String(slide?.url || '').trim())
+      .sort((a, b) => Number(a?.sortOrder || 0) - Number(b?.sortOrder || 0) || Number(a?.id || 0) - Number(b?.id || 0));
+    if (!nextSlides.length) return;
+
+    stopAutoRotate();
+    activeIndex = 0;
+
+    slidesTrack.innerHTML = nextSlides
+      .map((slide, idx) => {
+        const copy = fallbackCopy[idx % fallbackCopy.length] || fallbackCopy[0];
+        const title = String(slide?.title || '').trim() || copy.title;
+        const description = String(slide?.description || '').trim() || copy.description;
+        const altText = String(slide?.altText || '').trim() || title;
+        const focalX = Number.isFinite(Number(slide?.focalX)) ? Math.max(0, Math.min(100, Number(slide.focalX))) : 50;
+        const focalY = Number.isFinite(Number(slide?.focalY)) ? Math.max(0, Math.min(100, Number(slide.focalY))) : 50;
+
+        return `
+          <article class="absolute inset-0 ${idx === 0 ? '' : 'opacity-0 pointer-events-none'} transition-opacity duration-500 ease-out" data-hero-slide aria-hidden="${idx === 0 ? 'false' : 'true'}">
+            <img src="${escapeHtml(slide.url)}" alt="${escapeHtml(altText)}" class="h-full w-full object-cover" style="object-position:${focalX}% ${focalY}%;" />
+            <div class="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-slate-900/45 to-transparent"></div>
+            <div class="absolute bottom-0 left-0 right-0 p-5 sm:p-7">
+              <p class="font-display text-3xl uppercase leading-none text-white sm:text-5xl">${escapeHtml(title)}</p>
+              <p class="mt-3 max-w-xl text-sm text-slate-200 sm:text-base">${escapeHtml(description)}</p>
+            </div>
+          </article>
+        `;
+      })
+      .join('');
+
+    dotsRoot.innerHTML = nextSlides
+      .map(
+        (_slide, idx) =>
+          `<button type="button" class="h-2.5 w-2.5 rounded-full ${idx === 0 ? 'bg-white' : 'bg-white/45'}" data-hero-dot="${idx}" aria-label="Ir al slide ${
+            idx + 1
+          }" ${idx === 0 ? 'aria-current="true"' : ''}></button>`
+      )
+      .join('');
+
+    slides = Array.from(carousel.querySelectorAll('[data-hero-slide]'));
+    dots = Array.from(carousel.querySelectorAll('[data-hero-dot]'));
+    bindDots();
+    render(0);
+    startAutoRotate();
   };
 
   prevBtn?.addEventListener('click', () => {
@@ -76,17 +170,58 @@ function setupHomeHeroCarousel() {
     startAutoRotate();
   });
 
-  dots.forEach((dot) => {
-    dot.addEventListener('click', () => {
-      const targetIndex = Number(dot.dataset.heroDot);
-      if (!Number.isFinite(targetIndex)) return;
-      render(targetIndex);
-      startAutoRotate();
-    });
-  });
+  bindDots();
 
   carousel.addEventListener('mouseenter', stopAutoRotate);
   carousel.addEventListener('mouseleave', startAutoRotate);
+  carousel.addEventListener(
+    'touchstart',
+    (event) => {
+      const touch = event.touches[0];
+      if (!touch) return;
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+      touchStartTime = Date.now();
+      stopAutoRotate();
+    },
+    { passive: true }
+  );
+  carousel.addEventListener(
+    'touchend',
+    (event) => {
+      const touch = event.changedTouches[0];
+      if (!touch || touchStartX === null || touchStartY === null) {
+        startAutoRotate();
+        return;
+      }
+
+      const deltaX = touch.clientX - touchStartX;
+      const deltaY = touch.clientY - touchStartY;
+      const elapsedMs = Date.now() - touchStartTime;
+      const absX = Math.abs(deltaX);
+      const absY = Math.abs(deltaY);
+      const isHorizontalSwipe = slides.length > 1 && absX >= 40 && absX > absY;
+      const isQuickEnough = elapsedMs <= 900;
+
+      if (isHorizontalSwipe && isQuickEnough) {
+        if (deltaX < 0) {
+          render(activeIndex + 1);
+        } else {
+          render(activeIndex - 1);
+        }
+      }
+
+      touchStartX = null;
+      touchStartY = null;
+      startAutoRotate();
+    },
+    { passive: true }
+  );
+  carousel.addEventListener('touchcancel', () => {
+    touchStartX = null;
+    touchStartY = null;
+    startAutoRotate();
+  });
   carousel.addEventListener('focusin', stopAutoRotate);
   carousel.addEventListener('focusout', (event) => {
     if (!carousel.contains(event.relatedTarget)) {
@@ -103,6 +238,15 @@ function setupHomeHeroCarousel() {
 
   render(0);
   startAutoRotate();
+
+  fetch('/api/hero-slides')
+    .then((response) => (response.ok ? response.json() : []))
+    .then((rows) => {
+      applyRemoteSlides(rows);
+    })
+    .catch(() => {
+      // fallback: keep static slides if API fails
+    });
 }
 
 function openWhatsappCheckout(url) {

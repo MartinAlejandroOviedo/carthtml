@@ -57,6 +57,11 @@ const {
   updatePageImage,
   deletePageImage,
   setPageMainImage,
+  listHeroSlides,
+  getHeroSlideById,
+  createHeroSlide,
+  updateHeroSlide,
+  deleteHeroSlide,
   listPages,
   createPage,
   updatePage,
@@ -1263,6 +1268,15 @@ app.get('/api/site-config', async (_req, res) => {
   }
 });
 
+app.get('/api/hero-slides', async (_req, res) => {
+  try {
+    const slides = await listHeroSlides({ activeOnly: true });
+    return res.json(Array.isArray(slides) ? slides : []);
+  } catch (_error) {
+    return res.status(500).json({ error: 'No se pudieron cargar los slides del hero.' });
+  }
+});
+
 app.get('/api/pages/:slug', async (req, res) => {
   try {
     const page = await getPageBySlug(req.params.slug);
@@ -1807,6 +1821,54 @@ app.delete('/api/panel/page-images/:id', async (req, res) => {
     return res.json({ ok: true });
   } catch (error) {
     return res.status(500).json({ error: 'No se pudo eliminar imagen de pagina.' });
+  }
+});
+
+app.get('/api/panel/hero-slides', async (_req, res) => {
+  try {
+    res.json(await listHeroSlides({ activeOnly: false }));
+  } catch (_error) {
+    res.status(500).json({ error: 'No se pudieron cargar los slides del hero.' });
+  }
+});
+
+app.post('/api/panel/hero-slides', async (req, res) => {
+  try {
+    res.status(201).json(await createHeroSlide(req.body || {}));
+  } catch (error) {
+    res.status(400).json({ error: error.message || 'No se pudo crear slide del hero.' });
+  }
+});
+
+app.put('/api/panel/hero-slides/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'ID inválido.' });
+    const current = await getHeroSlideById(id);
+    const updated = await updateHeroSlide(id, req.body || {});
+    if (!updated) return res.status(404).json({ error: 'Slide no encontrado.' });
+    if (current && current.url && updated.url && current.url !== updated.url) {
+      await deleteUploadedImageFamilyByUrl(current.url);
+    }
+    return res.json(updated);
+  } catch (error) {
+    return res.status(400).json({ error: error.message || 'No se pudo actualizar slide del hero.' });
+  }
+});
+
+app.delete('/api/panel/hero-slides/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'ID inválido.' });
+    const current = await getHeroSlideById(id);
+    const ok = await deleteHeroSlide(id);
+    if (!ok) return res.status(404).json({ error: 'Slide no encontrado.' });
+    if (current && current.url) {
+      await deleteUploadedImageFamilyByUrl(current.url);
+    }
+    return res.json({ ok: true });
+  } catch (_error) {
+    return res.status(500).json({ error: 'No se pudo eliminar slide del hero.' });
   }
 });
 

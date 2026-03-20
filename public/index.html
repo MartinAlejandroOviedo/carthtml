@@ -7,9 +7,9 @@
     <!-- SEO_META -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preload" href="/api/products" as="fetch" type="application/json" crossorigin="anonymous" />
-    <script src="/vendor/lucide/lucide.min.js" defer></script>
-    <link rel="stylesheet" href="/tailwind.css" />
-    <link rel="stylesheet" href="/styles.css" />
+    <script src="/vendor/lucide/lucide.min.js?v=20260320" defer></script>
+    <link rel="stylesheet" href="/tailwind.css?v=20260320" />
+    <link rel="stylesheet" href="/styles.css?v=20260320" />
   </head>
   <body class="bg-slate-950 text-slate-100 font-body" data-page="home">
     <div class="fixed inset-0 -z-10 bg-mesh"></div>
@@ -119,9 +119,9 @@
           aria-roledescription="carousel"
           aria-label="Destacados de la tienda"
         >
-          <div class="relative h-56 sm:h-72 md:h-[26rem]">
+          <div id="home-hero-track" class="relative h-56 sm:h-72 md:h-[26rem]" style="height: clamp(14rem, 52vw, 26rem);">
             <article class="absolute inset-0 transition-opacity duration-500 ease-out" data-hero-slide>
-              <img src="/uploads/images/page/1/gran-final2.png" alt="Jugador de futbol con camiseta oficial" class="h-full w-full object-cover" />
+              <img src="https://picsum.photos/seed/slstore-hero-1/1600/900" alt="Jugador de futbol con camiseta oficial" class="h-full w-full object-cover" />
               <div class="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-slate-900/45 to-transparent"></div>
               <div class="absolute bottom-0 left-0 right-0 p-5 sm:p-7">
                 <p class="font-display text-3xl uppercase leading-none text-white sm:text-5xl">Equipate para tu proximo partido</p>
@@ -131,7 +131,7 @@
               </div>
             </article>
             <article class="absolute inset-0 opacity-0 pointer-events-none transition-opacity duration-500 ease-out" data-hero-slide>
-              <img src="/uploads/images/page/1/gran-final2-slider.webp" alt="Indumentaria deportiva para entrenar y competir" class="h-full w-full object-cover" />
+              <img src="https://picsum.photos/seed/slstore-hero-2/1600/900" alt="Indumentaria deportiva para entrenar y competir" class="h-full w-full object-cover" />
               <div class="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-slate-900/45 to-transparent"></div>
               <div class="absolute bottom-0 left-0 right-0 p-5 sm:p-7">
                 <p class="font-display text-3xl uppercase leading-none text-white sm:text-5xl">Nuevos ingresos toda la semana</p>
@@ -141,7 +141,7 @@
               </div>
             </article>
             <article class="absolute inset-0 opacity-0 pointer-events-none transition-opacity duration-500 ease-out" data-hero-slide>
-              <img src="/uploads/images/page/1/gran-final2-card.webp" alt="Ofertas destacadas para equipamiento deportivo" class="h-full w-full object-cover" />
+              <img src="https://picsum.photos/seed/slstore-hero-3/1600/900" alt="Ofertas destacadas para equipamiento deportivo" class="h-full w-full object-cover" />
               <div class="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-slate-900/45 to-transparent"></div>
               <div class="absolute bottom-0 left-0 right-0 p-5 sm:p-7">
                 <p class="font-display text-3xl uppercase leading-none text-white sm:text-5xl">Promos y envios a todo el pais</p>
@@ -446,6 +446,6 @@
       </div>
     </main>
 
-    <script type="module" src="/js/app.js"></script>
+    <script type="module" src="/js/app.js?v=20260320"></script>
   </body>
 </html>
