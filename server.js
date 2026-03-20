@@ -9,6 +9,17 @@ const sharp = require('sharp');
 const compression = require('compression');
 const { buildSeoMetaTags, buildProductSocialMetaTags, injectSocialMetaIntoHtml } = require('./mod/social-meta');
 const {
+  buildSeoModulesFromSettings: buildSeoModulesConfig,
+  hasEnabledSeoModules: hasEnabledSeoModulesConfig,
+  buildSeoDefaultsFromSettings: buildSeoDefaultsConfig
+} = require('./mod/seo-settings');
+const {
+  buildSitemapXml: buildSitemapXmlDoc,
+  buildRobotsTxt,
+  buildHtaccessTxt
+} = require('./mod/seo-tech');
+const { buildTrackingTags } = require('./mod/tracking');
+const {
   initDb,
   getProducts,
   getProductById,
@@ -79,6 +90,18 @@ const IMAGE_UPLOAD_ORIGINAL = {
   quality: 82
 };
 const PANEL_SERVICE_NAME = String(process.env.PANEL_SERVICE_NAME || 'carthtml').trim() || 'carthtml';
+const PRODUCTS_CACHE_TTL_MS = Number(process.env.PRODUCTS_CACHE_TTL_MS || 8000);
+let productsCache = {
+  expiresAt: 0,
+  payload: null
+};
+
+function invalidateProductsCache() {
+  productsCache = {
+    expiresAt: 0,
+    payload: null
+  };
+}
 
 fs.mkdirSync(uploadDir, { recursive: true, mode: 0o755 });
 fs.mkdirSync(typedImagesDir, { recursive: true, mode: 0o755 });
@@ -898,15 +921,16 @@ async function renderHtmlWithSeo(req, res, next, { templateName, buildTags }) {
     const templatePath = path.join(__dirname, 'public', templateName);
     const templateHtml = await fs.promises.readFile(templatePath, 'utf8');
     const settings = await getSettings().catch(() => null);
-    const seoModules = buildSeoModulesFromSettings(settings);
-    const seoDefaults = buildSeoDefaultsFromSettings(settings);
+    const seoModules = buildSeoModulesConfig(settings);
+    const seoDefaults = buildSeoDefaultsConfig(settings);
+    const trackingTags = buildTrackingTags(settings);
 
-    if (!hasEnabledSeoModules(seoModules)) {
-      return res.type('html').send(injectSocialMetaIntoHtml(templateHtml, ''));
+    if (!hasEnabledSeoModulesConfig(seoModules)) {
+      return res.type('html').send(injectSocialMetaIntoHtml(templateHtml, trackingTags));
     }
 
     const tags = (await buildTags({ req, settings, seoModules, seoDefaults })) || '';
-    return res.type('html').send(injectSocialMetaIntoHtml(templateHtml, tags));
+    return res.type('html').send(injectSocialMetaIntoHtml(templateHtml, `${tags}\n${trackingTags}`));
   } catch (error) {
     return next(error);
   }
@@ -1076,7 +1100,7 @@ app.get('/sitemap.xml', async (req, res) => {
 
     const products = await getProducts().catch(() => []);
     const baseUrl = getRequestBaseUrl(req);
-    const xml = buildSitemapXml({ baseUrl, products });
+    const xml = buildSitemapXmlDoc({ baseUrl, products });
     return res.type('application/xml').send(xml);
   } catch (_error) {
     return res.status(500).type('text/plain').send('No se pudo generar sitemap.xml');
@@ -1086,28 +1110,8 @@ app.get('/sitemap.xml', async (req, res) => {
 app.get('/robots.txt', async (req, res) => {
   try {
     const settings = await getSettings().catch(() => null);
-    const moduleEnabled = Number(settings?.seoTechFilesEnabled ?? 1) === 1;
-    const robotsEnabled = Number(settings?.seoRobotsTxtEnabled ?? 1) === 1;
     const baseUrl = getRequestBaseUrl(req);
-    const sitemapUrl = `${baseUrl}/sitemap.xml`;
-
-    let robotsText = String(settings?.seoRobotsTxtContent || '').trim();
-    if (!moduleEnabled || !robotsEnabled) {
-      robotsText = ['User-agent: *', 'Disallow: /'].join('\n');
-    } else if (!robotsText) {
-      const canIndex = Number(settings?.seoHtmlRobotsIndexEnabled ?? 1) === 1;
-      robotsText = canIndex
-        ? ['User-agent: *', 'Allow: /', `Sitemap: ${sitemapUrl}`].join('\n')
-        : ['User-agent: *', 'Disallow: /', `Sitemap: ${sitemapUrl}`].join('\n');
-    } else {
-      robotsText = applyTextTemplate(robotsText, {
-        baseurl: baseUrl,
-        siteurl: baseUrl,
-        sitemapurl: sitemapUrl
-      });
-    }
-
-    const out = robotsText.endsWith('\n') ? robotsText : `${robotsText}\n`;
+    const out = buildRobotsTxt({ settings, baseUrl });
     return res.type('text/plain; charset=utf-8').send(out);
   } catch (_error) {
     return res.status(500).type('text/plain').send('No se pudo generar robots.txt');
@@ -1117,28 +1121,11 @@ app.get('/robots.txt', async (req, res) => {
 app.get('/htaccess.txt', async (req, res) => {
   try {
     const settings = await getSettings().catch(() => null);
-    const moduleEnabled = Number(settings?.seoTechFilesEnabled ?? 1) === 1;
-    const htaccessEnabled = Number(settings?.seoHtaccessEnabled ?? 0) === 1;
-    if (!moduleEnabled || !htaccessEnabled) {
+    const baseUrl = getRequestBaseUrl(req);
+    const out = buildHtaccessTxt({ settings, baseUrl });
+    if (!out) {
       return res.status(404).type('text/plain').send('htaccess deshabilitado.');
     }
-
-    const baseUrl = getRequestBaseUrl(req);
-    const sitemapUrl = `${baseUrl}/sitemap.xml`;
-    const configured = String(settings?.seoHtaccessContent || '').trim();
-    const fallback = [
-      '# SLStore htaccess',
-      '# Sitemap: {{sitemapUrl}}',
-      '<IfModule mod_rewrite.c>',
-      '  RewriteEngine On',
-      '</IfModule>'
-    ].join('\n');
-    const text = applyTextTemplate(configured || fallback, {
-      baseurl: baseUrl,
-      siteurl: baseUrl,
-      sitemapurl: sitemapUrl
-    });
-    const out = text.endsWith('\n') ? text : `${text}\n`;
     return res.type('text/plain; charset=utf-8').send(out);
   } catch (_error) {
     return res.status(500).type('text/plain').send('No se pudo generar htaccess.');
@@ -1165,7 +1152,18 @@ app.get('/api/health', (_req, res) => {
 
 app.get('/api/products', async (_req, res) => {
   try {
+    const now = Date.now();
+    if (productsCache.payload && productsCache.expiresAt > now) {
+      res.setHeader('X-Products-Cache', 'HIT');
+      return res.json(productsCache.payload);
+    }
+
     const products = await getProducts();
+    productsCache = {
+      payload: products,
+      expiresAt: now + PRODUCTS_CACHE_TTL_MS
+    };
+    res.setHeader('X-Products-Cache', 'MISS');
     res.json(products);
   } catch (error) {
     res.status(500).json({ error: 'No se pudieron cargar los productos.' });
@@ -1882,7 +1880,9 @@ app.get('/api/panel/products', async (_req, res) => {
 
 app.post('/api/panel/products', async (req, res) => {
   try {
-    res.status(201).json(await createProductAdmin(req.body || {}));
+    const created = await createProductAdmin(req.body || {});
+    invalidateProductsCache();
+    res.status(201).json(created);
   } catch (error) {
     res.status(400).json({ error: error.message || 'No se pudo crear producto.' });
   }
@@ -1894,6 +1894,7 @@ app.put('/api/panel/products/:id', async (req, res) => {
     if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'ID inválido.' });
     const updated = await updateProductAdmin(id, req.body || {});
     if (!updated) return res.status(404).json({ error: 'Producto no encontrado.' });
+    invalidateProductsCache();
     return res.json(updated);
   } catch (error) {
     return res.status(400).json({ error: error.message || 'No se pudo actualizar producto.' });
@@ -1908,6 +1909,7 @@ app.patch('/api/panel/products/:id/image', async (req, res) => {
     if (!String(imageUrl || '').trim()) return res.status(400).json({ error: 'imageUrl es obligatorio.' });
     const updated = await setProductMainImage(id, imageUrl);
     if (!updated) return res.status(404).json({ error: 'Producto no encontrado.' });
+    invalidateProductsCache();
     return res.json(updated);
   } catch (error) {
     return res.status(400).json({ error: error.message || 'No se pudo actualizar imagen principal.' });
@@ -1975,6 +1977,7 @@ app.delete('/api/panel/products/:id', async (req, res) => {
         await deleteUploadedImageFamilyByUrl(image.url);
       }
     }
+    invalidateProductsCache();
     return res.json({ ok: true });
   } catch (error) {
     return res.status(500).json({ error: 'No se pudo eliminar producto.' });

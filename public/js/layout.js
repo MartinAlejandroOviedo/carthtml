@@ -331,7 +331,7 @@ export async function injectLayout() {
 
   const tasks = [];
 
-  if (headerRoot) {
+  if (headerRoot && !headerRoot.children.length) {
     tasks.push(
       loadPart('header').then((html) => {
         headerRoot.innerHTML = html;
@@ -339,7 +339,7 @@ export async function injectLayout() {
     );
   }
 
-  if (footerRoot) {
+  if (footerRoot && !footerRoot.children.length) {
     tasks.push(
       loadPart('footer').then((html) => {
         footerRoot.innerHTML = html;
@@ -347,7 +347,7 @@ export async function injectLayout() {
     );
   }
 
-  if (filtersRoot) {
+  if (filtersRoot && !filtersRoot.children.length) {
     tasks.push(
       loadPart('filters-panel').then((html) => {
         filtersRoot.innerHTML = html;

@@ -13,7 +13,95 @@
   <body class="bg-slate-950 text-slate-100 font-body" data-page="home">
     <div class="fixed inset-0 -z-10 bg-mesh"></div>
     <main class="min-h-screen">
-      <div id="site-header"></div>
+      <div id="site-header">
+        <div class="mx-auto max-w-6xl px-4 pt-8">
+          <header class="mb-6 rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3">
+            <div class="flex items-center justify-between gap-3">
+              <a href="/" class="flex items-center gap-2 text-sky-300">
+                <img
+                  data-store-logo
+                  class="hidden"
+                  style="max-height:34px;max-width:180px;width:auto;height:auto;object-fit:contain"
+                  aria-hidden="true"
+                />
+                <span data-store-name class="font-display text-lg uppercase tracking-widest">SLStore</span>
+              </a>
+
+              <nav class="hidden items-center gap-2 text-sm text-slate-300 md:flex">
+                <a href="/" class="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 transition hover:bg-sky-500/20 hover:text-white">
+                  <span class="lucide h-4 w-4" data-lucide="house"></span>
+                  Inicio
+                </a>
+                <a href="/cart.html" class="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 transition hover:bg-sky-500/20 hover:text-white">
+                  <span class="lucide h-4 w-4" data-lucide="shopping-bag"></span>
+                  Carrito
+                </a>
+                <a href="/help.html" class="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 transition hover:bg-sky-500/20 hover:text-white">
+                  <span class="lucide h-4 w-4" data-lucide="circle-help"></span>
+                  Ayuda
+                </a>
+              </nav>
+
+              <div class="flex items-center gap-2">
+                <button
+                  id="mobile-menu-open"
+                  class="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-slate-900/60 text-slate-100 transition hover:bg-slate-800/70 md:hidden"
+                  aria-label="Abrir menu"
+                  type="button"
+                >
+                  <span class="lucide" data-lucide="menu"></span>
+                </button>
+                <button
+                  id="cart-toggle"
+                  class="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-sky-300/30 bg-sky-500/20 text-sky-100 transition hover:bg-sky-500/35 has-tooltip"
+                  aria-label="Ver carrito"
+                  data-tooltip="Ver carrito"
+                >
+                  <span class="lucide" data-lucide="shopping-bag"></span>
+                  <span
+                    id="cart-count"
+                    class="absolute -top-2 -right-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-sky-200 text-xs text-sky-900"
+                    >0</span
+                  >
+                </button>
+              </div>
+            </div>
+          </header>
+        </div>
+
+        <div id="mobile-menu-overlay" class="fixed inset-0 z-40 hidden bg-slate-950/75 md:hidden"></div>
+        <aside
+          id="mobile-menu-drawer"
+          class="fixed inset-y-0 left-0 z-50 w-[84%] max-w-xs -translate-x-full border-r border-white/10 bg-slate-900 shadow-2xl transition-transform duration-300 md:hidden"
+          aria-hidden="true"
+        >
+          <div class="flex items-center justify-between border-b border-white/10 px-4 py-4">
+            <p class="font-display text-lg uppercase tracking-widest text-white">Menu</p>
+            <button
+              id="mobile-menu-close"
+              class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/20 text-slate-100"
+              aria-label="Cerrar menu"
+              type="button"
+            >
+              <span class="lucide h-4 w-4" data-lucide="x"></span>
+            </button>
+          </div>
+          <nav class="flex flex-col gap-1 p-3 text-sm text-slate-200">
+            <a href="/" class="inline-flex items-center gap-2 rounded-lg px-3 py-2 transition hover:bg-sky-500/20 hover:text-white">
+              <span class="lucide h-4 w-4" data-lucide="house"></span>
+              Inicio
+            </a>
+            <a href="/cart.html" class="inline-flex items-center gap-2 rounded-lg px-3 py-2 transition hover:bg-sky-500/20 hover:text-white">
+              <span class="lucide h-4 w-4" data-lucide="shopping-bag"></span>
+              Carrito
+            </a>
+            <a href="/help.html" class="inline-flex items-center gap-2 rounded-lg px-3 py-2 transition hover:bg-sky-500/20 hover:text-white">
+              <span class="lucide h-4 w-4" data-lucide="circle-help"></span>
+              Ayuda
+            </a>
+          </nav>
+        </aside>
+      </div>
 
       <section class="mx-auto max-w-6xl px-4 pt-8">
         <div class="rounded-3xl border border-white/10 bg-slate-900/70 p-5 shadow-2xl shadow-sky-950/60 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -181,9 +269,122 @@
 
       <div id="backdrop" class="fixed inset-0 z-20 hidden bg-slate-950/70"></div>
       <div id="filters-backdrop" class="fixed inset-0 z-20 hidden bg-slate-950/70"></div>
-      <div id="filters-root"></div>
+      <div id="filters-root">
+        <aside
+          id="filters-panel"
+          class="fixed inset-y-0 left-0 z-30 w-full max-w-md -translate-x-full border-r border-white/10 bg-slate-900 shadow-2xl transition-transform duration-300"
+        >
+          <div class="flex items-center justify-between border-b border-white/10 p-4">
+            <div>
+              <p class="font-display text-xl uppercase text-white">Buscar y filtrar</p>
+              <p class="text-xs text-slate-400">Filtra por texto, categoria y ordena resultados.</p>
+            </div>
+            <button id="close-filters" class="text-sm text-slate-300 hover:text-white">Cerrar</button>
+          </div>
 
-      <div id="site-footer"></div>
+          <div class="space-y-4 p-4 overflow-y-auto h-[calc(100%-64px)]">
+            <div>
+              <label for="search-products" class="mb-2 block text-xs uppercase tracking-wide text-slate-400">Buscar producto</label>
+              <div class="relative">
+                <input
+                  id="search-products"
+                  type="search"
+                  placeholder="Ej: camiseta, botines, pelota..."
+                  class="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 pl-11 text-sm text-slate-100 placeholder:text-slate-500 outline-none ring-sky-400 transition focus:ring-2"
+                />
+                <span class="lucide absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" data-lucide="search"></span>
+              </div>
+            </div>
+
+            <div>
+              <label for="category-select" class="mb-2 block text-xs uppercase tracking-wide text-slate-400">Categorias</label>
+              <select
+                id="category-select"
+                class="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
+              >
+                <option value="Todos">Todas</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="sort-products" class="mb-2 block text-xs uppercase tracking-wide text-slate-400">Ordenar</label>
+              <select
+                id="sort-products"
+                class="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
+              >
+                <option value="relevance">Relevancia</option>
+                <option value="price-asc">Precio: menor a mayor</option>
+                <option value="price-desc">Precio: mayor a menor</option>
+              </select>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <div id="site-footer">
+        <footer class="border-t border-white/10 bg-slate-950/90">
+          <div class="mx-auto grid max-w-6xl gap-6 px-4 py-8 md:grid-cols-4">
+            <div>
+              <p data-store-name class="font-display text-2xl uppercase text-white">SLStore</p>
+              <p class="mt-2 text-sm text-slate-300">
+                Tienda deportiva online. Atencion personalizada para pedidos por WhatsApp en toda Argentina.
+              </p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-slate-400">Contacto</p>
+              <p class="mt-2 text-sm text-slate-200">WhatsApp: +54 9 11 1234-5678</p>
+              <p class="text-sm text-slate-200">Email: ventas@slstore.com</p>
+              <p class="text-sm text-slate-200">Horario: Lun a Vie 9:00 - 18:00</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-slate-400">Ubicacion</p>
+              <p class="mt-2 text-sm text-slate-200">CABA, Buenos Aires, Argentina</p>
+              <p class="text-sm text-slate-400">Envios nacionales con Correo Argentino</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-slate-400">Redes</p>
+              <div class="mt-2 flex items-center gap-2">
+                <a
+                  href="#"
+                  data-social-link="instagram"
+                  class="has-tooltip inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-slate-900/60 text-slate-200 transition hover:border-sky-300/40 hover:text-white"
+                  aria-label="Instagram"
+                  data-tooltip="Instagram"
+                >
+                  <span class="lucide h-4 w-4" data-lucide="instagram"></span>
+                </a>
+                <a
+                  href="#"
+                  data-social-link="facebook"
+                  class="has-tooltip inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-slate-900/60 text-slate-200 transition hover:border-sky-300/40 hover:text-white"
+                  aria-label="Facebook"
+                  data-tooltip="Facebook"
+                >
+                  <span class="lucide h-4 w-4" data-lucide="facebook"></span>
+                </a>
+                <a
+                  href="#"
+                  data-social-link="youtube"
+                  class="has-tooltip inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-slate-900/60 text-slate-200 transition hover:border-sky-300/40 hover:text-white"
+                  aria-label="YouTube"
+                  data-tooltip="YouTube"
+                >
+                  <span class="lucide h-4 w-4" data-lucide="youtube"></span>
+                </a>
+                <a
+                  href="#"
+                  data-social-link="x"
+                  class="has-tooltip inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-slate-900/60 text-slate-200 transition hover:border-sky-300/40 hover:text-white"
+                  aria-label="X"
+                  data-tooltip="X"
+                >
+                  <span class="lucide h-4 w-4" data-lucide="twitter"></span>
+                </a>
+              </div>
+            </div>
+          </div>
+        </footer>
+      </div>
     </main>
 
     <script type="module" src="/js/app.js"></script>
