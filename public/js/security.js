@@ -1,5 +1,5 @@
 import { fetchPageBySlug } from './api.js';
-import { injectLayout } from './layout.js';
+import { injectLayout } from './layout.js?v=20260320b';
 
 const ACTIVE_TAB_CLASSES = ['border-sky-300/60', 'bg-sky-500/25', 'text-white'];
 const INACTIVE_TAB_CLASSES = ['border-white/15', 'bg-slate-900/60', 'text-slate-200'];

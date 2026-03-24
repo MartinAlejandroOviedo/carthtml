@@ -1,5 +1,5 @@
 import { fetchPageBySlug } from './api.js';
-import { injectLayout } from './layout.js';
+import { injectLayout } from './layout.js?v=20260320b';
 
 function renderFallback(message) {
   const root = document.getElementById('help-content');

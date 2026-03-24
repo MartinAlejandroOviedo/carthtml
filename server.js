@@ -70,6 +70,9 @@ const {
   createProductAdmin,
   updateProductAdmin,
   deleteProductAdmin,
+  getFooterSettings,
+  listFooterSettings,
+  updateFooterSettings,
   regenerateAllProductImageAltTexts,
   getSecuritySettings,
   updateSecuritySettings
@@ -1222,6 +1225,7 @@ app.post('/api/orders', async (req, res) => {
 app.get('/api/site-config', async (_req, res) => {
   try {
     const settings = await getSettings();
+    const footer = await getFooterSettings();
     const storeName = String(settings?.storeName || process.env.STORE_NAME || 'SLStore').trim();
     const whatsappNumber = String(settings?.whatsappNumber || WHATSAPP_NUMBER || '')
       .replace(/\D+/g, '')
@@ -1242,7 +1246,17 @@ app.get('/api/site-config', async (_req, res) => {
       templateHeadingScale: Number(settings?.templateHeadingScale || 1),
       templateHeadingSizePx: Number(settings?.templateHeadingSizePx || 32),
       templateBodySizePx: Number(settings?.templateBodySizePx || 16),
-      templateGoogleAnalyticsId: String(settings?.templateGoogleAnalyticsId || '').trim()
+      templateGoogleAnalyticsId: String(settings?.templateGoogleAnalyticsId || '').trim(),
+      footerBrandTitle: String(footer?.brandTitle || storeName).trim(),
+      footerBrandDescription: String(footer?.brandDescription || '').trim(),
+      footerContactTitle: String(footer?.contactTitle || 'Contacto').trim(),
+      footerContactWhatsappText: String(footer?.contactWhatsappText || '').trim(),
+      footerContactEmailText: String(footer?.contactEmailText || '').trim(),
+      footerContactHoursText: String(footer?.contactHoursText || '').trim(),
+      footerLocationTitle: String(footer?.locationTitle || 'Ubicacion').trim(),
+      footerLocationLine1Text: String(footer?.locationLine1Text || '').trim(),
+      footerLocationLine2Text: String(footer?.locationLine2Text || '').trim(),
+      footerSocialTitle: String(footer?.socialTitle || 'Redes').trim()
     });
   } catch (_error) {
     return res.json({
@@ -1263,7 +1277,17 @@ app.get('/api/site-config', async (_req, res) => {
       templateHeadingScale: 1,
       templateHeadingSizePx: 32,
       templateBodySizePx: 16,
-      templateGoogleAnalyticsId: ''
+      templateGoogleAnalyticsId: '',
+      footerBrandTitle: String(process.env.STORE_NAME || 'SLStore').trim(),
+      footerBrandDescription: 'Tienda deportiva online. Atencion personalizada para pedidos por WhatsApp en toda Argentina.',
+      footerContactTitle: 'Contacto',
+      footerContactWhatsappText: '',
+      footerContactEmailText: 'Email: ventas@slstore.com',
+      footerContactHoursText: 'Horario: Lun a Vie 9:00 - 18:00',
+      footerLocationTitle: 'Ubicacion',
+      footerLocationLine1Text: 'CABA, Buenos Aires, Argentina',
+      footerLocationLine2Text: 'Envios nacionales con Correo Argentino',
+      footerSocialTitle: 'Redes'
     });
   }
 });
@@ -1274,6 +1298,14 @@ app.get('/api/hero-slides', async (_req, res) => {
     return res.json(Array.isArray(slides) ? slides : []);
   } catch (_error) {
     return res.status(500).json({ error: 'No se pudieron cargar los slides del hero.' });
+  }
+});
+
+app.get('/api/footer-settings', async (_req, res) => {
+  try {
+    return res.json(await getFooterSettings());
+  } catch (_error) {
+    return res.status(500).json({ error: 'No se pudo cargar configuración de footer.' });
   }
 });
 
@@ -1645,6 +1677,26 @@ app.put('/api/panel/settings/:id', async (req, res) => {
     return res.json(updated);
   } catch (error) {
     return res.status(400).json({ error: error.message || 'No se pudo actualizar configuración.' });
+  }
+});
+
+app.get('/api/panel/footer-settings', async (_req, res) => {
+  try {
+    res.json(await listFooterSettings());
+  } catch (_error) {
+    res.status(500).json({ error: 'No se pudo cargar configuración de footer.' });
+  }
+});
+
+app.put('/api/panel/footer-settings/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'ID inválido.' });
+    if (id !== 1) return res.status(400).json({ error: 'Solo existe una configuración de footer.' });
+    const updated = await updateFooterSettings(req.body || {});
+    return res.json(updated);
+  } catch (error) {
+    return res.status(400).json({ error: error.message || 'No se pudo actualizar el footer.' });
   }
 });
 

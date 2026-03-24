@@ -67,6 +67,10 @@ const DEFAULT_TEMPLATE_BODY_COLOR = '#e2e8f0';
 const DEFAULT_TEMPLATE_HEADING_SCALE = 1;
 const DEFAULT_TEMPLATE_HEADING_SIZE_PX = 32;
 const DEFAULT_TEMPLATE_BODY_SIZE_PX = 16;
+const DEFAULT_FOOTER_CONTACT_EMAIL = 'ventas@slstore.com';
+const DEFAULT_FOOTER_CONTACT_HOURS = 'Horario: Lun a Vie 9:00 - 18:00';
+const DEFAULT_FOOTER_LOCATION_LINE1 = 'CABA, Buenos Aires, Argentina';
+const DEFAULT_FOOTER_LOCATION_LINE2 = 'Envios nacionales con Correo Argentino';
 const TEMPLATE_FONT_CHOICES = new Set([
   'space-grotesk',
   'barlow-condensed',
@@ -869,6 +873,32 @@ async function ensureSchemaMigrations() {
   await addColumnIfMissing('hero_slides', 'created_at', "TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))");
   await addColumnIfMissing('hero_slides', 'updated_at', "TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))");
 
+  await run(`CREATE TABLE IF NOT EXISTS footer_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    brand_title TEXT NOT NULL DEFAULT '',
+    brand_description TEXT NOT NULL DEFAULT '',
+    contact_title TEXT NOT NULL DEFAULT 'Contacto',
+    contact_whatsapp_text TEXT NOT NULL DEFAULT '',
+    contact_email_text TEXT NOT NULL DEFAULT '',
+    contact_hours_text TEXT NOT NULL DEFAULT '',
+    location_title TEXT NOT NULL DEFAULT 'Ubicacion',
+    location_line1_text TEXT NOT NULL DEFAULT '',
+    location_line2_text TEXT NOT NULL DEFAULT '',
+    social_title TEXT NOT NULL DEFAULT 'Redes',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+  )`);
+  await addColumnIfMissing('footer_settings', 'brand_title', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('footer_settings', 'brand_description', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('footer_settings', 'contact_title', "TEXT NOT NULL DEFAULT 'Contacto'");
+  await addColumnIfMissing('footer_settings', 'contact_whatsapp_text', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('footer_settings', 'contact_email_text', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('footer_settings', 'contact_hours_text', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('footer_settings', 'location_title', "TEXT NOT NULL DEFAULT 'Ubicacion'");
+  await addColumnIfMissing('footer_settings', 'location_line1_text', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('footer_settings', 'location_line2_text', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('footer_settings', 'social_title', "TEXT NOT NULL DEFAULT 'Redes'");
+  await addColumnIfMissing('footer_settings', 'updated_at', "TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))");
+
   await addColumnIfMissing('categories', 'icon', "TEXT NOT NULL DEFAULT 'tag'");
   await addColumnIfMissing('pages', 'image_url', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('products', 'colors', "TEXT NOT NULL DEFAULT ''");
@@ -1627,6 +1657,38 @@ async function seedSettings() {
   );
 }
 
+async function seedFooterSettings() {
+  const settings = await getSettings();
+  const fallbackStoreName = normalizeText(settings?.storeName || DEFAULT_STORE_NAME, 120);
+  const fallbackWhatsapp = normalizeText(settings?.whatsappNumber || DEFAULT_WHATSAPP_NUMBER, 40);
+  const whatsappText = fallbackWhatsapp ? `WhatsApp: ${fallbackWhatsapp}` : '';
+
+  await run(
+    `INSERT OR IGNORE INTO footer_settings (
+      id,
+      brand_title,
+      brand_description,
+      contact_title,
+      contact_whatsapp_text,
+      contact_email_text,
+      contact_hours_text,
+      location_title,
+      location_line1_text,
+      location_line2_text,
+      social_title
+    ) VALUES (1, ?, ?, 'Contacto', ?, ?, ?, 'Ubicacion', ?, ?, 'Redes')`,
+    [
+      fallbackStoreName,
+      'Tienda deportiva online. Atencion personalizada para pedidos por WhatsApp en toda Argentina.',
+      whatsappText,
+      `Email: ${DEFAULT_FOOTER_CONTACT_EMAIL}`,
+      DEFAULT_FOOTER_CONTACT_HOURS,
+      DEFAULT_FOOTER_LOCATION_LINE1,
+      DEFAULT_FOOTER_LOCATION_LINE2
+    ]
+  );
+}
+
 function buildWhatsappMessage(order) {
   const itemsTotal = Number(order.items_total_ars || 0);
   const shippingTotal = Number(order.shipping_ars || 0);
@@ -1876,6 +1938,21 @@ async function initDb() {
     updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
   )`);
 
+  await run(`CREATE TABLE IF NOT EXISTS footer_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    brand_title TEXT NOT NULL DEFAULT '',
+    brand_description TEXT NOT NULL DEFAULT '',
+    contact_title TEXT NOT NULL DEFAULT 'Contacto',
+    contact_whatsapp_text TEXT NOT NULL DEFAULT '',
+    contact_email_text TEXT NOT NULL DEFAULT '',
+    contact_hours_text TEXT NOT NULL DEFAULT '',
+    location_title TEXT NOT NULL DEFAULT 'Ubicacion',
+    location_line1_text TEXT NOT NULL DEFAULT '',
+    location_line2_text TEXT NOT NULL DEFAULT '',
+    social_title TEXT NOT NULL DEFAULT 'Redes',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+  )`);
+
   await run(`CREATE TABLE IF NOT EXISTS orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     customer_name TEXT NOT NULL,
@@ -1926,6 +2003,7 @@ async function initDb() {
   await seedHeroSlides();
   await seedDefaultAdminUser();
   await seedSettings();
+  await seedFooterSettings();
   await seedProductsIfNeeded();
   await backfillProductAttributesIfNeeded();
   await ensureCategoriesAndImagesFromProducts();
@@ -4475,6 +4553,134 @@ async function deleteProductAdmin(productId) {
   return result.changes > 0;
 }
 
+async function getFooterSettings() {
+  let row = await get(
+    `SELECT
+      id,
+      brand_title as brandTitle,
+      brand_description as brandDescription,
+      contact_title as contactTitle,
+      contact_whatsapp_text as contactWhatsappText,
+      contact_email_text as contactEmailText,
+      contact_hours_text as contactHoursText,
+      location_title as locationTitle,
+      location_line1_text as locationLine1Text,
+      location_line2_text as locationLine2Text,
+      social_title as socialTitle,
+      updated_at as updatedAt
+     FROM footer_settings
+     WHERE id = 1`
+  );
+
+  if (!row) {
+    await seedFooterSettings();
+    row = await get(
+      `SELECT
+        id,
+        brand_title as brandTitle,
+        brand_description as brandDescription,
+        contact_title as contactTitle,
+        contact_whatsapp_text as contactWhatsappText,
+        contact_email_text as contactEmailText,
+        contact_hours_text as contactHoursText,
+        location_title as locationTitle,
+        location_line1_text as locationLine1Text,
+        location_line2_text as locationLine2Text,
+        social_title as socialTitle,
+        updated_at as updatedAt
+       FROM footer_settings
+       WHERE id = 1`
+    );
+  }
+
+  const settings = await getSettings();
+  const storeNameFallback = normalizeText(settings?.storeName || DEFAULT_STORE_NAME, 120);
+  const whatsappFallbackRaw = normalizeText(settings?.whatsappNumber || DEFAULT_WHATSAPP_NUMBER, 40);
+  const whatsappFallback = whatsappFallbackRaw ? `WhatsApp: ${whatsappFallbackRaw}` : '';
+
+  return {
+    id: 1,
+    brandTitle: normalizeText(row?.brandTitle || storeNameFallback, 120),
+    brandDescription: normalizeText(
+      row?.brandDescription || 'Tienda deportiva online. Atencion personalizada para pedidos por WhatsApp en toda Argentina.',
+      300
+    ),
+    contactTitle: normalizeText(row?.contactTitle || 'Contacto', 80),
+    contactWhatsappText: normalizeText(row?.contactWhatsappText || whatsappFallback, 120),
+    contactEmailText: normalizeText(row?.contactEmailText || `Email: ${DEFAULT_FOOTER_CONTACT_EMAIL}`, 120),
+    contactHoursText: normalizeText(row?.contactHoursText || DEFAULT_FOOTER_CONTACT_HOURS, 120),
+    locationTitle: normalizeText(row?.locationTitle || 'Ubicacion', 80),
+    locationLine1Text: normalizeText(row?.locationLine1Text || DEFAULT_FOOTER_LOCATION_LINE1, 120),
+    locationLine2Text: normalizeText(row?.locationLine2Text || DEFAULT_FOOTER_LOCATION_LINE2, 120),
+    socialTitle: normalizeText(row?.socialTitle || 'Redes', 80),
+    updatedAt: row?.updatedAt || null
+  };
+}
+
+async function listFooterSettings() {
+  const row = await getFooterSettings();
+  return row ? [row] : [];
+}
+
+async function updateFooterSettings(input = {}) {
+  const current = await getFooterSettings();
+  const next = {
+    brandTitle: normalizeText(input.brandTitle ?? current.brandTitle, 120),
+    brandDescription: normalizeText(input.brandDescription ?? current.brandDescription, 300),
+    contactTitle: normalizeText(input.contactTitle ?? current.contactTitle, 80),
+    contactWhatsappText: normalizeText(input.contactWhatsappText ?? current.contactWhatsappText, 120),
+    contactEmailText: normalizeText(input.contactEmailText ?? current.contactEmailText, 120),
+    contactHoursText: normalizeText(input.contactHoursText ?? current.contactHoursText, 120),
+    locationTitle: normalizeText(input.locationTitle ?? current.locationTitle, 80),
+    locationLine1Text: normalizeText(input.locationLine1Text ?? current.locationLine1Text, 120),
+    locationLine2Text: normalizeText(input.locationLine2Text ?? current.locationLine2Text, 120),
+    socialTitle: normalizeText(input.socialTitle ?? current.socialTitle, 80)
+  };
+
+  await run(
+    `INSERT INTO footer_settings (
+      id,
+      brand_title,
+      brand_description,
+      contact_title,
+      contact_whatsapp_text,
+      contact_email_text,
+      contact_hours_text,
+      location_title,
+      location_line1_text,
+      location_line2_text,
+      social_title,
+      updated_at
+    ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
+    ON CONFLICT(id) DO UPDATE SET
+      brand_title = excluded.brand_title,
+      brand_description = excluded.brand_description,
+      contact_title = excluded.contact_title,
+      contact_whatsapp_text = excluded.contact_whatsapp_text,
+      contact_email_text = excluded.contact_email_text,
+      contact_hours_text = excluded.contact_hours_text,
+      location_title = excluded.location_title,
+      location_line1_text = excluded.location_line1_text,
+      location_line2_text = excluded.location_line2_text,
+      social_title = excluded.social_title,
+      updated_at = datetime('now', 'localtime')`,
+    [
+      next.brandTitle,
+      next.brandDescription,
+      next.contactTitle,
+      next.contactWhatsappText,
+      next.contactEmailText,
+      next.contactHoursText,
+      next.locationTitle,
+      next.locationLine1Text,
+      next.locationLine2Text,
+      next.socialTitle
+    ]
+  );
+
+  return getFooterSettings();
+}
+
 function parseSecurityPatterns(rawValue) {
   return String(rawValue || '')
     .split(',')
@@ -4644,6 +4850,9 @@ module.exports = {
   createProductAdmin,
   updateProductAdmin,
   deleteProductAdmin,
+  getFooterSettings,
+  listFooterSettings,
+  updateFooterSettings,
   regenerateAllProductImageAltTexts,
   getSecuritySettings,
   updateSecuritySettings

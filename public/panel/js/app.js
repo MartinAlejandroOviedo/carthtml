@@ -903,6 +903,33 @@ const viewConfig = {
       }
     ]
   },
+  footer: {
+    title: 'Footer',
+    endpoint: 'footer-settings',
+    idKey: 'id',
+    singleton: true,
+    columns: ['id', 'brandTitle', 'contactTitle', 'locationTitle', 'socialTitle', 'updatedAt'],
+    fields: [
+      {
+        key: 'footerIntro',
+        label: 'Configuracion del footer',
+        description:
+          'Personaliza el pie de pagina. Si dejas campos vacios, el sitio aplica valores por defecto basados en la configuracion general.',
+        type: 'section',
+        colSpan: 2
+      },
+      { key: 'brandTitle', label: 'Marca - Titulo', type: 'text', required: false, colSpan: 2, placeholder: 'ROPA DE SAN LORENZO' },
+      { key: 'brandDescription', label: 'Marca - Descripcion', type: 'textarea', required: false, colSpan: 2 },
+      { key: 'contactTitle', label: 'Contacto - Titulo', type: 'text', required: false },
+      { key: 'contactWhatsappText', label: 'Contacto - WhatsApp', type: 'text', required: false, placeholder: 'WhatsApp: +54 9 ...' },
+      { key: 'contactEmailText', label: 'Contacto - Email', type: 'text', required: false, colSpan: 2, placeholder: 'Email: ventas@...' },
+      { key: 'contactHoursText', label: 'Contacto - Horario', type: 'text', required: false, colSpan: 2 },
+      { key: 'locationTitle', label: 'Ubicacion - Titulo', type: 'text', required: false },
+      { key: 'locationLine1Text', label: 'Ubicacion - Linea 1', type: 'text', required: false },
+      { key: 'locationLine2Text', label: 'Ubicacion - Linea 2', type: 'text', required: false, colSpan: 2 },
+      { key: 'socialTitle', label: 'Redes - Titulo', type: 'text', required: false }
+    ]
+  },
   users: {
     title: 'Usuarios',
     endpoint: 'users',
@@ -1133,7 +1160,9 @@ function isTemplateAppearanceView() {
 
 function getSingletonFormTitle(cfg = getConfig()) {
   if (!cfg?.singleton) return `Nuevo ${cfg?.title || 'registro'}`;
-  return activeView === 'template' ? 'Apariencia del template' : 'Configuracion global';
+  if (activeView === 'template') return 'Apariencia del template';
+  if (activeView === 'footer') return 'Configuracion del footer';
+  return 'Configuracion global';
 }
 
 async function ensurePanelSession() {

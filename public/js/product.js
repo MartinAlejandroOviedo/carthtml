@@ -1,6 +1,6 @@
 import { fetchProductById } from './api.js';
 import { CartStore } from './cart.js';
-import { injectLayout } from './layout.js';
+import { injectLayout } from './layout.js?v=20260320b';
 import { formatArs } from './products.js';
 
 const stateEl = document.getElementById('product-state');

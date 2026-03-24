@@ -107,7 +107,17 @@ async function fetchSiteConfig() {
         DEFAULT_TEMPLATE_HEADING_SIZE_PX
       ),
       templateBodySizePx: normalizeBodySizePx(data?.templateBodySizePx, DEFAULT_TEMPLATE_BODY_SIZE_PX),
-      templateGoogleAnalyticsId: normalizeGoogleAnalyticsId(data?.templateGoogleAnalyticsId)
+      templateGoogleAnalyticsId: normalizeGoogleAnalyticsId(data?.templateGoogleAnalyticsId),
+      footerBrandTitle: String(data?.footerBrandTitle || '').trim(),
+      footerBrandDescription: String(data?.footerBrandDescription || '').trim(),
+      footerContactTitle: String(data?.footerContactTitle || '').trim(),
+      footerContactWhatsappText: String(data?.footerContactWhatsappText || '').trim(),
+      footerContactEmailText: String(data?.footerContactEmailText || '').trim(),
+      footerContactHoursText: String(data?.footerContactHoursText || '').trim(),
+      footerLocationTitle: String(data?.footerLocationTitle || '').trim(),
+      footerLocationLine1Text: String(data?.footerLocationLine1Text || '').trim(),
+      footerLocationLine2Text: String(data?.footerLocationLine2Text || '').trim(),
+      footerSocialTitle: String(data?.footerSocialTitle || '').trim()
     };
   } catch (_error) {
     siteConfigCache = {
@@ -125,7 +135,17 @@ async function fetchSiteConfig() {
       templateBodyColor: DEFAULT_TEMPLATE_BODY_COLOR,
       templateHeadingSizePx: DEFAULT_TEMPLATE_HEADING_SIZE_PX,
       templateBodySizePx: DEFAULT_TEMPLATE_BODY_SIZE_PX,
-      templateGoogleAnalyticsId: ''
+      templateGoogleAnalyticsId: '',
+      footerBrandTitle: 'SLStore',
+      footerBrandDescription: 'Tienda deportiva online. Atencion personalizada para pedidos por WhatsApp en toda Argentina.',
+      footerContactTitle: 'Contacto',
+      footerContactWhatsappText: '',
+      footerContactEmailText: 'Email: ventas@slstore.com',
+      footerContactHoursText: 'Horario: Lun a Vie 9:00 - 18:00',
+      footerLocationTitle: 'Ubicacion',
+      footerLocationLine1Text: 'CABA, Buenos Aires, Argentina',
+      footerLocationLine2Text: 'Envios nacionales con Correo Argentino',
+      footerSocialTitle: 'Redes'
     };
   }
   return siteConfigCache;
@@ -234,6 +254,30 @@ function hydrateStoreName(config) {
     node.setAttribute('aria-hidden', 'true');
     node.removeAttribute('src');
     node.removeAttribute('alt');
+  });
+}
+
+function hydrateFooterContent(config) {
+  const map = [
+    ['[data-footer-brand-title]', String(config?.footerBrandTitle || config?.storeName || 'SLStore').trim()],
+    [
+      '[data-footer-brand-description]',
+      String(config?.footerBrandDescription || 'Tienda deportiva online. Atencion personalizada para pedidos por WhatsApp en toda Argentina.').trim()
+    ],
+    ['[data-footer-contact-title]', String(config?.footerContactTitle || 'Contacto').trim()],
+    ['[data-footer-contact-whatsapp]', String(config?.footerContactWhatsappText || '').trim()],
+    ['[data-footer-contact-email]', String(config?.footerContactEmailText || '').trim()],
+    ['[data-footer-contact-hours]', String(config?.footerContactHoursText || '').trim()],
+    ['[data-footer-location-title]', String(config?.footerLocationTitle || 'Ubicacion').trim()],
+    ['[data-footer-location-line1]', String(config?.footerLocationLine1Text || '').trim()],
+    ['[data-footer-location-line2]', String(config?.footerLocationLine2Text || '').trim()],
+    ['[data-footer-social-title]', String(config?.footerSocialTitle || 'Redes').trim()]
+  ];
+
+  map.forEach(([selector, value]) => {
+    document.querySelectorAll(selector).forEach((node) => {
+      node.textContent = value;
+    });
   });
 }
 
@@ -360,6 +404,7 @@ export async function injectLayout() {
   applyTemplateFonts(siteConfig);
   injectGoogleAnalytics(siteConfig);
   hydrateStoreName(siteConfig);
+  hydrateFooterContent(siteConfig);
   applyFavicon(siteConfig);
   setupMobileHeaderMenu();
   injectFloatingWhatsappButton(siteConfig);

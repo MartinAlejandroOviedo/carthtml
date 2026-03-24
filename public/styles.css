@@ -38,36 +38,54 @@
 }
 
 /* Layout helpers for sticky footer */
-main {
+html,
+body {
+  min-height: 100%;
+}
+
+body[data-page] {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+body[data-page] main {
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
 }
 
-main > * {
+body[data-page] main > * {
   flex: 0 0 auto;
   width: 100%;
 }
 
-#site-footer {
+body[data-page] #site-footer {
   margin-top: auto;
+  flex-shrink: 0;
+  display: block;
+}
+
+body[data-page] footer#site-footer-content {
+  width: 100%;
 }
 
 /* Reserve space to avoid CLS while header/footer are injected asynchronously. */
-#site-header {
+#site-header:empty {
   min-height: 90px;
 }
 
-#site-footer {
+#site-footer:empty {
   min-height: 240px;
 }
 
 @media (max-width: 767px) {
-  #site-header {
+  #site-header:empty {
     min-height: 84px;
   }
 
-  #site-footer {
+  #site-footer:empty {
     min-height: 280px;
   }
 }

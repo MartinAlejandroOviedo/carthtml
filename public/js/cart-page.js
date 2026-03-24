@@ -1,6 +1,6 @@
 import { fetchProducts, submitOrder } from './api.js';
 import { CartStore } from './cart.js';
-import { injectLayout } from './layout.js';
+import { injectLayout } from './layout.js?v=20260320b';
 import { renderCart, showCheckoutMessage } from './ui.js';
 
 const cartStore = new CartStore();
